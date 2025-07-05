@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.1
+Version:        0.1.1
 Release:        1%{?dist}
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v%{version}.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.1.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -66,6 +66,13 @@ install -m 644 README.md $RPM_BUILD_ROOT%{_docdir}/%{name}/
 %{_bindir}/%{name}-setup
 
 %changelog
+* Sun Jan 05 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.1.1-1
+- Major restructure: split into modular components
+- Enhanced cross-shell compatibility (bash/zsh)
+- Comprehensive test suite
+- System-wide installation support
+- Improved setup script with sudo prompting
+
 * Sun Jan 05 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.1-1
 - Initial RPM release
 - Provides ts command for Tailscale SSH connections

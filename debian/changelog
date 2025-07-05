@@ -1,3 +1,13 @@
+tailscale-cli-helpers (0.1.1-1) unstable; urgency=medium
+
+  * Major restructure: split into modular components
+  * Enhanced cross-shell compatibility (bash/zsh) 
+  * Comprehensive test suite
+  * System-wide installation support
+  * Improved setup script with sudo prompting
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Sun, 05 Jan 2025 14:00:00 +0000
+
 tailscale-cli-helpers (0.1-1) unstable; urgency=medium
 
   * Initial release
