@@ -1,4 +1,4 @@
-tailscale-cli-helpers (1.0.0-1) unstable; urgency=medium
+tailscale-cli-helpers (0.1-1) unstable; urgency=medium
 
   * Initial release
   * Provides ts command for Tailscale SSH connections

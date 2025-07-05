@@ -45,11 +45,11 @@ rpmdev-setuptree
 
 # Build the package
 cd tailscale-cli-helpers
-tar czf ~/rpmbuild/SOURCES/tailscale-cli-helpers-1.0.0.tar.gz --transform 's,^,tailscale-cli-helpers-1.0.0/,' *
+wget https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.1.tar.gz -O ~/rpmbuild/SOURCES/v0.1.tar.gz
 rpmbuild -ba tailscale-cli-helpers.spec
 
 # Install the package
-sudo rpm -ivh ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-1.0.0-1.*.noarch.rpm
+sudo rpm -ivh ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-0.1-1.*.noarch.rpm
 ```
 
 #### Option 2: Direct setup
@@ -72,7 +72,7 @@ cd tailscale-cli-helpers
 dpkg-buildpackage -us -uc
 
 # Install the package
-sudo dpkg -i ../tailscale-cli-helpers_1.0.0-1_all.deb
+sudo dpkg -i ../tailscale-cli-helpers_0.1-1_all.deb
 sudo apt-get install -f  # Install dependencies if needed
 ```
 
