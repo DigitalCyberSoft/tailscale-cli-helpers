@@ -1,0 +1,8 @@
+tailscale-cli-helpers (1.0.0-1) unstable; urgency=medium
+
+  * Initial release
+  * Provides ts command for Tailscale SSH connections
+  * Supports both bash and zsh with tab completion
+  * Includes fuzzy hostname matching
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Sun, 05 Jan 2025 12:00:00 +0000

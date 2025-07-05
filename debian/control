@@ -1,0 +1,22 @@
+Source: tailscale-cli-helpers
+Section: utils
+Priority: optional
+Maintainer: Digital Cyber Soft <support@digitalcybersoft.com>
+Build-Depends: debhelper (>= 10)
+Standards-Version: 4.5.0
+Homepage: https://github.com/digitalcybersoft/tailscale-cli-helpers
+
+Package: tailscale-cli-helpers
+Architecture: all
+Depends: ${misc:Depends}, bash (>= 4.0), jq, tailscale
+Description: Bash/Zsh functions for easy SSH access to Tailscale nodes
+ Provides convenient bash/zsh functions for SSH access to Tailscale nodes
+ with hostname completion and fuzzy matching. Includes the 'ts' command
+ for quick connections and smart host resolution.
+ .
+ Features:
+  - Tab completion for Tailscale hostnames
+  - Fuzzy hostname matching
+  - Support for both bash and zsh
+  - Automatic fallback to regular SSH for non-Tailscale hosts
+  - MagicDNS support

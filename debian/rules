@@ -1,0 +1,25 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	# Create directories
+	mkdir -p debian/tailscale-cli-helpers/etc/tailscale-cli-helpers
+	mkdir -p debian/tailscale-cli-helpers/etc/profile.d
+	mkdir -p debian/tailscale-cli-helpers/usr/bin
+	mkdir -p debian/tailscale-cli-helpers/usr/share/doc/tailscale-cli-helpers
+	
+	# Install main files
+	install -m 644 tailscale-ssh-helper.sh debian/tailscale-cli-helpers/etc/tailscale-cli-helpers/
+	install -m 755 test-tailscale-helper.sh debian/tailscale-cli-helpers/etc/tailscale-cli-helpers/
+	install -m 755 setup.sh debian/tailscale-cli-helpers/usr/bin/tailscale-cli-helpers-setup
+	
+	# Create profile.d script
+	echo '# Tailscale CLI helpers' > debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
+	echo 'if [ -f /etc/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
+	echo '    . /etc/tailscale-cli-helpers/tailscale-ssh-helper.sh' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
+	echo 'fi' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
+	
+	# Install documentation
+	install -m 644 README.md debian/tailscale-cli-helpers/usr/share/doc/tailscale-cli-helpers/
