@@ -326,6 +326,9 @@ ts() {
     dcs_ts "$@"
 }
 
+# Create ssh-copy-id alias
+alias ssh-copy-id='dcs_ssh_copy_id'
+
 # Enhanced ssh-copy-id with Tailscale support
 dcs_ssh_copy_id() {
     local args=()

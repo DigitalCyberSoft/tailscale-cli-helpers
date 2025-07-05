@@ -219,7 +219,9 @@ if [[ "$_IS_ZSH" == "true" ]]; then
         return 0
     }
     compdef _ts_zsh_completion ts
+    compdef _ts_zsh_completion ssh-copy-id
 else
     # bash completion
     complete -F _dcs_ts_completions ts
+    complete -F _dcs_ts_completions ssh-copy-id
 fi

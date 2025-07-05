@@ -1,3 +1,11 @@
+tailscale-cli-helpers (0.1.2-1) unstable; urgency=medium
+
+  * Added ssh-copy-id alias with Tailscale support
+  * Enhanced tab completion for ssh-copy-id command
+  * Improved integration with existing SSH workflows
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Sat, 05 Jul 2025 21:45:00 +0000
+
 tailscale-cli-helpers (0.1.1-1) unstable; urgency=medium
 
   * Major restructure: split into modular components

@@ -1,5 +1,5 @@
 Name:           tailscale-cli-helpers
-Version:        0.1.1
+Version:        0.1.2
 Release:        1%{?dist}
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
@@ -18,7 +18,7 @@ with hostname completion and fuzzy matching. Includes the 'ts' command
 for quick connections and smart host resolution.
 
 %prep
-%setup -q -n %{name}-%{version}
+%setup -q -n %{name}-0.1
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -66,6 +66,11 @@ install -m 644 README.md $RPM_BUILD_ROOT%{_docdir}/%{name}/
 %{_bindir}/%{name}-setup
 
 %changelog
+* Sun Jan 05 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.1.2-1
+- Added ssh-copy-id alias with Tailscale support
+- Enhanced tab completion for ssh-copy-id command
+- Improved integration with existing SSH workflows
+
 * Sun Jan 05 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.1.1-1
 - Major restructure: split into modular components
 - Enhanced cross-shell compatibility (bash/zsh)
