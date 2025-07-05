@@ -99,6 +99,13 @@ After installation, the `ts` command is immediately available in new shell sessi
 
 ### macOS
 
+#### Option 1: Homebrew (Recommended)
+```bash
+# Install via Homebrew (includes dependencies)
+brew install https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/tailscale-cli-helpers.rb
+```
+
+#### Option 2: Manual Installation
 ```bash
 # Install dependencies
 brew install jq tailscale
