@@ -1,5 +1,6 @@
-# Build artifacts
-packages/
+# Build artifacts (but keep packages directory)
+packages/*.rpm
+packages/*.deb
 *.rpm
 *.deb
 
