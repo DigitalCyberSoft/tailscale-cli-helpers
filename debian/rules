@@ -5,21 +5,29 @@
 
 override_dh_auto_install:
 	# Create directories
-	mkdir -p debian/tailscale-cli-helpers/etc/tailscale-cli-helpers
+	mkdir -p debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers
 	mkdir -p debian/tailscale-cli-helpers/etc/profile.d
+	mkdir -p debian/tailscale-cli-helpers/etc/bash_completion.d
 	mkdir -p debian/tailscale-cli-helpers/usr/bin
 	mkdir -p debian/tailscale-cli-helpers/usr/share/doc/tailscale-cli-helpers
 	
-	# Install main files
-	install -m 644 tailscale-ssh-helper.sh debian/tailscale-cli-helpers/etc/tailscale-cli-helpers/
-	install -m 755 test-tailscale-helper.sh debian/tailscale-cli-helpers/etc/tailscale-cli-helpers/
+	# Install main files to /usr/share
+	install -m 644 tailscale-ssh-helper.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/
+	install -m 644 tailscale-functions.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/
+	install -m 644 tailscale-completion.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/
 	install -m 755 setup.sh debian/tailscale-cli-helpers/usr/bin/tailscale-cli-helpers-setup
 	
-	# Create profile.d script
+	# Create profile.d script for all shells
 	echo '# Tailscale CLI helpers' > debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
-	echo 'if [ -f /etc/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
-	echo '    . /etc/tailscale-cli-helpers/tailscale-ssh-helper.sh' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
+	echo 'if [ -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
+	echo '    . /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
 	echo 'fi' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
+	
+	# Create bash completion script
+	echo '# Tailscale CLI helpers bash completion' > debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
+	echo 'if [ -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then' >> debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
+	echo '    . /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh' >> debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
+	echo 'fi' >> debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
 	
 	# Install documentation
 	install -m 644 README.md debian/tailscale-cli-helpers/usr/share/doc/tailscale-cli-helpers/

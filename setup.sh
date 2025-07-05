@@ -86,8 +86,8 @@ install_for_user() {
     
     # Copy files
     cp tailscale-ssh-helper.sh "$install_dir/"
-    cp test-tailscale-helper.sh "$install_dir/"
-    chmod +x "$install_dir/test-tailscale-helper.sh"
+    cp tailscale-functions.sh "$install_dir/"
+    cp tailscale-completion.sh "$install_dir/"
     
     # Add to shell rc file
     local source_line="# Tailscale CLI helpers
@@ -116,27 +116,44 @@ install_system_wide() {
         return 1
     fi
     
-    # Create directory
-    local install_dir="/etc/tailscale-cli-helpers"
+    # Create directories
+    local install_dir="/usr/share/tailscale-cli-helpers"
     mkdir -p "$install_dir"
+    mkdir -p "/etc/profile.d"
+    mkdir -p "/etc/bash_completion.d"
     
-    # Copy files
+    # Copy files to /usr/share
     cp tailscale-ssh-helper.sh "$install_dir/"
-    cp test-tailscale-helper.sh "$install_dir/"
-    chmod +x "$install_dir/test-tailscale-helper.sh"
+    cp tailscale-functions.sh "$install_dir/"
+    cp tailscale-completion.sh "$install_dir/"
     chmod 644 "$install_dir/tailscale-ssh-helper.sh"
+    chmod 644 "$install_dir/tailscale-functions.sh"
+    chmod 644 "$install_dir/tailscale-completion.sh"
     
-    # Create profile.d script
+    # Create profile.d script for all shells
     cat > /etc/profile.d/tailscale-cli-helpers.sh << 'EOF'
 # Tailscale CLI helpers
-if [ -f /etc/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
-    . /etc/tailscale-cli-helpers/tailscale-ssh-helper.sh
+if [ -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
+    . /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh
 fi
 EOF
     
     chmod 644 /etc/profile.d/tailscale-cli-helpers.sh
     
+    # Create bash completion script
+    cat > /etc/bash_completion.d/tailscale-cli-helpers << 'EOF'
+# Tailscale CLI helpers bash completion
+if [ -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
+    . /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh
+fi
+EOF
+    
+    chmod 644 /etc/bash_completion.d/tailscale-cli-helpers
+    
     echo "System-wide installation complete!"
+    echo "Files installed to: $install_dir"
+    echo "Profile script: /etc/profile.d/tailscale-cli-helpers.sh"
+    echo "Bash completion: /etc/bash_completion.d/tailscale-cli-helpers"
     echo "New shell sessions will automatically load the helpers."
 }
 
@@ -162,14 +179,26 @@ uninstall() {
     
     # Remove system-wide installation (requires root)
     if [[ $EUID -eq 0 ]]; then
-        if [[ -d "/etc/tailscale-cli-helpers" ]]; then
-            rm -rf "/etc/tailscale-cli-helpers"
-            echo "Removed system-wide installation"
+        # Remove new standard locations
+        if [[ -d "/usr/share/tailscale-cli-helpers" ]]; then
+            rm -rf "/usr/share/tailscale-cli-helpers"
+            echo "Removed /usr/share/tailscale-cli-helpers"
         fi
         
         if [[ -f "/etc/profile.d/tailscale-cli-helpers.sh" ]]; then
             rm -f "/etc/profile.d/tailscale-cli-helpers.sh"
-            echo "Removed from /etc/profile.d"
+            echo "Removed /etc/profile.d/tailscale-cli-helpers.sh"
+        fi
+        
+        if [[ -f "/etc/bash_completion.d/tailscale-cli-helpers" ]]; then
+            rm -f "/etc/bash_completion.d/tailscale-cli-helpers"
+            echo "Removed /etc/bash_completion.d/tailscale-cli-helpers"
+        fi
+        
+        # Remove old locations for backward compatibility
+        if [[ -d "/etc/tailscale-cli-helpers" ]]; then
+            rm -rf "/etc/tailscale-cli-helpers"
+            echo "Removed old /etc/tailscale-cli-helpers"
         fi
     else
         echo "Note: Run with sudo to remove system-wide installation"
@@ -186,16 +215,16 @@ Usage: $0 [OPTIONS]
 Install tailscale-cli-helpers for easy SSH access to Tailscale nodes.
 
 OPTIONS:
-    --user      Install for current user only (default)
+    --user      Install for current user only
     --system    Install system-wide (requires root)
     --uninstall Remove installation
     --help      Show this help message
 
 EXAMPLES:
-    $0              # Install for current user
-    $0 --user       # Install for current user
+    $0              # Install for current user (prompts for system-wide option)
+    $0 --user       # Install for current user only
     sudo $0 --system # Install system-wide
-    $0 --uninstall  # Remove user installation
+    $0 --uninstall  # Remove installation
     
 After installation, use:
     ts <hostname>       # Connect to Tailscale node
@@ -206,7 +235,7 @@ EOF
 
 # Main
 main() {
-    local mode="user"
+    local mode=""
     
     # Parse arguments
     case "${1:-}" in
@@ -224,7 +253,21 @@ main() {
             exit 0
             ;;
         "")
-            mode="user"
+            # Auto-detect based on privileges
+            if [[ $EUID -eq 0 ]]; then
+                mode="system"
+                echo "Running as root - installing system-wide"
+            else
+                mode="user"
+                echo "Running as user - installing for current user only"
+                echo ""
+                read -p "Would you like to install system-wide instead? This requires sudo. (y/N): " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    echo "Re-running with sudo for system-wide installation..."
+                    exec sudo "$0" --system
+                fi
+            fi
             ;;
         *)
             echo "Unknown option: $1"

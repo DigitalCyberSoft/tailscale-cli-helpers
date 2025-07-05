@@ -24,21 +24,31 @@ for quick connections and smart host resolution.
 rm -rf $RPM_BUILD_ROOT
 
 # Create directories
-mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/%{name}
+mkdir -p $RPM_BUILD_ROOT%{_datadir}/%{name}
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/profile.d
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/bash_completion.d
 mkdir -p $RPM_BUILD_ROOT%{_bindir}
 mkdir -p $RPM_BUILD_ROOT%{_docdir}/%{name}
 
-# Install main files
-install -m 644 tailscale-ssh-helper.sh $RPM_BUILD_ROOT%{_sysconfdir}/%{name}/
-install -m 755 test-tailscale-helper.sh $RPM_BUILD_ROOT%{_sysconfdir}/%{name}/
+# Install main files to /usr/share
+install -m 644 tailscale-ssh-helper.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
+install -m 644 tailscale-functions.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
+install -m 644 tailscale-completion.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
 install -m 755 setup.sh $RPM_BUILD_ROOT%{_bindir}/%{name}-setup
 
-# Create profile.d script
+# Create profile.d script for all shells
 cat > $RPM_BUILD_ROOT%{_sysconfdir}/profile.d/%{name}.sh << 'EOF'
 # Tailscale CLI helpers
-if [ -f %{_sysconfdir}/%{name}/tailscale-ssh-helper.sh ]; then
-    . %{_sysconfdir}/%{name}/tailscale-ssh-helper.sh
+if [ -f %{_datadir}/%{name}/tailscale-ssh-helper.sh ]; then
+    . %{_datadir}/%{name}/tailscale-ssh-helper.sh
+fi
+EOF
+
+# Create bash completion script
+cat > $RPM_BUILD_ROOT%{_sysconfdir}/bash_completion.d/%{name} << 'EOF'
+# Tailscale CLI helpers bash completion
+if [ -f %{_datadir}/%{name}/tailscale-ssh-helper.sh ]; then
+    . %{_datadir}/%{name}/tailscale-ssh-helper.sh
 fi
 EOF
 
@@ -48,9 +58,11 @@ install -m 644 README.md $RPM_BUILD_ROOT%{_docdir}/%{name}/
 %files
 %license LICENSE
 %doc %{_docdir}/%{name}/README.md
-%{_sysconfdir}/%{name}/tailscale-ssh-helper.sh
-%{_sysconfdir}/%{name}/test-tailscale-helper.sh
+%{_datadir}/%{name}/tailscale-ssh-helper.sh
+%{_datadir}/%{name}/tailscale-functions.sh
+%{_datadir}/%{name}/tailscale-completion.sh
 %{_sysconfdir}/profile.d/%{name}.sh
+%{_sysconfdir}/bash_completion.d/%{name}
 %{_bindir}/%{name}-setup
 
 %changelog

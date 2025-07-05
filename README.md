@@ -28,10 +28,23 @@ Bash/Zsh functions for easy SSH access to Tailscale nodes with hostname completi
 git clone https://github.com/digitalcybersoft/tailscale-cli-helpers.git
 cd tailscale-cli-helpers
 
-# Run the setup script
+# Run the setup script (auto-detects privileges)
 ./setup.sh              # Install for current user
-sudo ./setup.sh --system # Install system-wide
+sudo ./setup.sh         # Install system-wide (auto-detected)
+
+# Or explicitly specify installation type
+./setup.sh --user       # Force user installation
+sudo ./setup.sh --system # Force system-wide installation
 ```
+
+**System-wide installation locations:**
+- Scripts: `/usr/share/tailscale-cli-helpers/`
+- Shell loading: `/etc/profile.d/tailscale-cli-helpers.sh`
+- Bash completion: `/etc/bash_completion.d/tailscale-cli-helpers`
+
+**User installation locations:**
+- Scripts: `~/.config/tailscale-cli-helpers/`
+- Shell loading: Added to `~/.bashrc` or `~/.zshrc`
 
 ### Fedora/RHEL (RPM)
 
@@ -52,13 +65,13 @@ rpmbuild -ba tailscale-cli-helpers.spec
 sudo rpm -ivh ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-0.1-1.*.noarch.rpm
 ```
 
-#### Option 2: Direct setup
-```bash
-# Add to your ~/.bashrc
-if [ -f $HOME/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
-    . $HOME/tailscale-cli-helpers/tailscale-ssh-helper.sh
-fi
-```
+#### Option 2: Manual RPM installation
+The RPM package installs to standard system locations:
+- Scripts in `/usr/share/tailscale-cli-helpers/`
+- Automatically loaded via `/etc/profile.d/tailscale-cli-helpers.sh`
+- Bash completion in `/etc/bash_completion.d/tailscale-cli-helpers`
+
+After installation, the `ts` command is immediately available in new shell sessions.
 
 ### Ubuntu/Debian (DEB)
 
@@ -76,13 +89,13 @@ sudo dpkg -i ../tailscale-cli-helpers_0.1-1_all.deb
 sudo apt-get install -f  # Install dependencies if needed
 ```
 
-#### Option 2: Direct setup
-```bash
-# Add to your ~/.bashrc
-if [ -f $HOME/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
-    . $HOME/tailscale-cli-helpers/tailscale-ssh-helper.sh
-fi
-```
+#### Option 2: Manual DEB installation
+The DEB package installs to standard system locations:
+- Scripts in `/usr/share/tailscale-cli-helpers/`
+- Automatically loaded via `/etc/profile.d/tailscale-cli-helpers.sh`
+- Bash completion in `/etc/bash_completion.d/tailscale-cli-helpers`
+
+After installation, the `ts` command is immediately available in new shell sessions.
 
 ### macOS
 
@@ -95,10 +108,9 @@ git clone https://github.com/digitalcybersoft/tailscale-cli-helpers.git
 cd tailscale-cli-helpers
 ./setup.sh
 
-# Or add manually to ~/.zshrc or ~/.bash_profile
-if [ -f $HOME/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
-    . $HOME/tailscale-cli-helpers/tailscale-ssh-helper.sh
-fi
+# macOS setup script will install to user locations:
+# - Scripts: ~/.config/tailscale-cli-helpers/
+# - Shell loading: Added to ~/.zshrc or ~/.bash_profile
 ```
 
 ## Usage
@@ -116,7 +128,7 @@ ts user@hostname
 ts -v hostname
 
 # Test the installation
-./test-tailscale-helper.sh
+./tests/test-tailscale-helper.sh
 ```
 
 ### Tab Completion
