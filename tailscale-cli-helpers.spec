@@ -5,7 +5,7 @@ Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.1.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.1.2.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -18,7 +18,7 @@ with hostname completion and fuzzy matching. Includes the 'ts' command
 for quick connections and smart host resolution.
 
 %prep
-%setup -q -n %{name}-0.1
+%setup -q -n %{name}-0.1.2
 
 %install
 rm -rf $RPM_BUILD_ROOT

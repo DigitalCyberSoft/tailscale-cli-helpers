@@ -149,14 +149,14 @@ ts @prod<TAB>             # Shows all hosts containing "prod"
 
 ### SSH Key Distribution
 
-The package includes a wrapper for `ssh-copy-id` that understands Tailscale hosts:
+The package includes an enhanced `ssh-copy-id` that understands Tailscale hosts:
 
 ```bash
 # Copy SSH key to a Tailscale node
-dcs_ssh_copy_id user@hostname
+ssh-copy-id user@hostname
 
 # Use with ProxyJump
-dcs_ssh_copy_id -J jumphost user@destination
+ssh-copy-id -J jumphost user@destination
 ```
 
 ## How It Works

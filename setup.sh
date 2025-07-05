@@ -66,7 +66,11 @@ install_for_user() {
         # Try to detect from SHELL variable
         case "$SHELL" in
             */bash)
-                shell_rc="$HOME/.bashrc"
+                if [[ "$(uname)" == "Darwin" ]]; then
+                    shell_rc="$HOME/.bash_profile"
+                else
+                    shell_rc="$HOME/.bashrc"
+                fi
                 shell_name="bash"
                 ;;
             */zsh)
@@ -168,7 +172,7 @@ uninstall() {
     fi
     
     # Remove from shell rc files
-    for rc_file in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    for rc_file in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.bash_profile"; do
         if [[ -f "$rc_file" ]]; then
             # Create temp file without the source lines
             grep -v "tailscale-cli-helpers/tailscale-ssh-helper.sh" "$rc_file" > "$rc_file.tmp" || true
