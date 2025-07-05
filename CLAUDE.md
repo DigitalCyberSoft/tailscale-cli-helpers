@@ -23,7 +23,10 @@ wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags
 # Build RPM
 rpmbuild -ba tailscale-cli-helpers.spec
 
-# Output: ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.fc42.noarch.rpm
+# Copy to packages directory
+mkdir -p packages
+cp ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.fc42.noarch.rpm packages/
+cp ~/rpmbuild/SRPMS/tailscale-cli-helpers-X.Y.Z-1.fc42.src.rpm packages/
 ```
 
 ### DEB Package
@@ -31,7 +34,8 @@ rpmbuild -ba tailscale-cli-helpers.spec
 # Convert from RPM using alien
 fakeroot alien --to-deb ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.fc42.noarch.rpm
 
-# Output: tailscale-cli-helpers_X.Y.Z-2_all.deb
+# Copy to packages directory
+mv tailscale-cli-helpers_X.Y.Z-2_all.deb packages/
 ```
 
 ### Homebrew Formula

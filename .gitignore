@@ -1,0 +1,11 @@
+# Build artifacts
+packages/
+*.rpm
+*.deb
+
+# Homebrew test files
+*.bottle
+
+# Temporary files
+*.tmp
+.DS_Store
