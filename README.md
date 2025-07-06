@@ -73,12 +73,23 @@ The RPM package installs to standard system locations:
 
 After installation, the `ts` command is immediately available in new shell sessions.
 
-### Ubuntu/Debian (DEB)
+### Debian-based Systems (DEB)
 
-#### Option 1: Build and install DEB
+#### Option 1: Download and install pre-built DEB
 ```bash
-# Install build tools
-sudo apt-get install -y build-essential debhelper
+# Download the latest DEB package
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/releases/download/v0.1/tailscale-cli-helpers_0.1-2_all.deb
+
+# Install the package (works on all DEB-based systems)
+sudo dpkg -i tailscale-cli-helpers_0.1-2_all.deb
+sudo apt-get install -f  # Install dependencies if needed
+```
+
+#### Option 2: Build and install DEB from source
+```bash
+# Install build tools (adjust package manager as needed)
+sudo apt-get install -y build-essential debhelper    # Debian/Ubuntu
+# sudo apt install -y build-essential debhelper      # Ubuntu/Mint
 
 # Build the package
 cd tailscale-cli-helpers
@@ -89,7 +100,7 @@ sudo dpkg -i ../tailscale-cli-helpers_0.1-1_all.deb
 sudo apt-get install -f  # Install dependencies if needed
 ```
 
-#### Option 2: Manual DEB installation
+#### Package Installation Details
 The DEB package installs to standard system locations:
 - Scripts in `/usr/share/tailscale-cli-helpers/`
 - Automatically loaded via `/etc/profile.d/tailscale-cli-helpers.sh`
