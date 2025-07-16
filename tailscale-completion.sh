@@ -97,22 +97,22 @@ _dcs_ts_completions() {
             local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
             
             if [[ "$magicdns_enabled" == "true" ]]; then
-                # MagicDNS enabled - use full DNS names
-                local dns_suffix=$(echo "$ts_json" | jq -r '.MagicDNSSuffix' 2>/dev/null)
+                # MagicDNS enabled - use hostnames only (without domain suffix)
+                # The ts command will handle the DNS resolution
                 
-                # Get self hostname with DNS suffix
+                # Get self hostname
                 local self_host=$(echo "$ts_json" | jq -r '.Self.HostName' 2>/dev/null)
                 if [[ -n "$self_host" && "$self_host" != "null" ]]; then
-                    ts_hosts+=("${self_host}.${dns_suffix}")
+                    ts_hosts+=("$self_host")
                 fi
                 
-                # Get peer DNS names (already include suffix)
+                # Get peer hostnames (extract just hostname part from DNS names)
                 # Handle array assignment for both shells
                 local peer_hosts
                 if [[ "$_IS_ZSH" == "true" ]]; then
-                    peer_hosts=(${(f)"$(echo "$ts_json" | jq -r '.Peer | to_entries[] | .value.DNSName | rtrimstr(".")' 2>/dev/null)"})
+                    peer_hosts=(${(f)"$(echo "$ts_json" | jq -r '.Peer | to_entries[] | .value.HostName' 2>/dev/null)"})
                 else
-                    peer_hosts=($(echo "$ts_json" | jq -r '.Peer | to_entries[] | .value.DNSName | rtrimstr(".")' 2>/dev/null))
+                    peer_hosts=($(echo "$ts_json" | jq -r '.Peer | to_entries[] | .value.HostName' 2>/dev/null))
                 fi
                 for host in "${peer_hosts[@]}"; do
                     if [[ -n "$host" && "$host" != "null" ]]; then
