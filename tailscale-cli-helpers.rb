@@ -1,8 +1,8 @@
 class TailscaleCliHelpers < Formula
   desc "Bash/Zsh functions for easy SSH access to Tailscale nodes"
   homepage "https://github.com/DigitalCyberSoft/tailscale-cli-helpers"
-  url "https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.1.2.tar.gz"
-  sha256 "73f7c7fd47e0362cfa8ddf6ab76c819076a06cb2c62a16c2f6bc9850a1007b49"
+  url "https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.1.3.tar.gz"
+  sha256 "6584f0879bf3701ee6a5b103a68947690d07042b14936c30dde982779ba84b59"
   license "MIT"
 
   depends_on "jq"
