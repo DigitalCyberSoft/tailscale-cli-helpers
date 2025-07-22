@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.1.2
+Version:        0.1.3
 Release:        1%{?dist}
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.1.2.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.1.3.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -18,7 +18,7 @@ with hostname completion and fuzzy matching. Includes the 'ts' command
 for quick connections and smart host resolution.
 
 %prep
-%setup -q -n %{name}-0.1.2
+%setup -q -n %{name}-0.1.3
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -66,6 +66,10 @@ install -m 644 README.md $RPM_BUILD_ROOT%{_docdir}/%{name}/
 %{_bindir}/%{name}-setup
 
 %changelog
+* Mon Jul 22 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.1.3-1
+- Added MagicDNS fallback to IP when resolv.conf is misconfigured
+- Fixed autocomplete to return hostnames without domain suffix
+
 * Sun Jan 05 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.1.2-1
 - Added ssh-copy-id alias with Tailscale support
 - Enhanced tab completion for ssh-copy-id command
