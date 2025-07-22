@@ -123,6 +123,21 @@ _dcs_is_magicdns_enabled() {
     fi
 }
 
+# Check if MagicDNS is properly configured in resolv.conf
+_dcs_is_magicdns_working() {
+    # Check if MagicDNS is enabled first
+    if ! _dcs_is_magicdns_enabled; then
+        return 1
+    fi
+    
+    # Check if resolv.conf points to Tailscale DNS (100.100.100.100)
+    if grep -q "^nameserver 100.100.100.100" /etc/resolv.conf 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 # Main Tailscale SSH function
 dcs_ts() {
     local debug=false
@@ -249,13 +264,16 @@ dcs_ts() {
         local ip=$(echo "$host_info" | cut -d ',' -f 1)
         local real_hostname=$(echo "$host_info" | cut -d ',' -f 2)
         
-        if [[ "$magicdns_enabled" == "true" ]]; then
-            # MagicDNS enabled - use DNS name directly from the data
+        if _dcs_is_magicdns_working; then
+            # MagicDNS is properly configured - use DNS name
             echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}$user@$real_hostname${RESET} (${ip})..."
             ssh "$user@$real_hostname"
         else
-            # MagicDNS disabled - use IP but show hostname
+            # MagicDNS not working - use IP address
             echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}$user@$real_hostname${RESET} (${ip})..."
+            if [[ "$magicdns_enabled" == "true" ]]; then
+                echo "Note: MagicDNS is enabled but resolv.conf is not configured properly. Using IP address."
+            fi
             ssh "$user@$ip"
         fi
     else
@@ -305,13 +323,16 @@ dcs_ts() {
             local selected_ip=$(echo "$selected_host" | cut -d ',' -f 1)
             local selected_hostname=$(echo "$selected_host" | cut -d ',' -f 2)
             
-            if [[ "$magicdns_enabled" == "true" ]]; then
-                # MagicDNS enabled - use DNS name directly from the data
+            if _dcs_is_magicdns_working; then
+                # MagicDNS is properly configured - use DNS name
                 echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}$user@$selected_hostname${RESET} (${selected_ip})..."
                 ssh "$user@$selected_hostname"
             else
-                # MagicDNS disabled - use IP but show hostname
+                # MagicDNS not working - use IP address
                 echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}$user@$selected_hostname${RESET} (${selected_ip})..."
+                if [[ "$magicdns_enabled" == "true" ]]; then
+                    echo "Note: MagicDNS is enabled but resolv.conf is not configured properly. Using IP address."
+                fi
                 ssh "$user@$selected_ip"
             fi
         else
@@ -430,11 +451,11 @@ dcs_ssh_copy_id() {
                     local found_ip=$(echo "$host_data" | cut -d',' -f1)
                     local found_hostname=$(echo "$host_data" | cut -d',' -f2)
                     
-                    if [[ "$magicdns_enabled" == "true" ]]; then
-                        # MagicDNS enabled - return DNS name
+                    if _dcs_is_magicdns_working; then
+                        # MagicDNS is properly configured - return DNS name
                         echo "$host_user@$found_hostname"
                     else
-                        # MagicDNS disabled - return IP
+                        # MagicDNS not working - return IP
                         echo "$host_user@$found_ip"
                     fi
                     return 0
