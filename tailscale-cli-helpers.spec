@@ -1,6 +1,6 @@
 Name:           tailscale-cli-helpers
 Version:        0.1.3
-Release:        1%{?dist}
+Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
