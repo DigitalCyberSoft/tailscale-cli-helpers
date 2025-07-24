@@ -3,6 +3,36 @@
 
 set -e
 
+# Security: Set secure umask for file creation
+umask 0022
+
+# Security: Validate source files exist and are regular files
+validate_source_file() {
+    local file="$1"
+    [[ -f "$file" && ! -L "$file" ]] || {
+        echo "Error: Invalid or missing source file: $file" >&2
+        return 1
+    }
+    # Check file is readable
+    [[ -r "$file" ]] || {
+        echo "Error: Cannot read source file: $file" >&2
+        return 1
+    }
+}
+
+# Security: Validate destination directory
+validate_destination_dir() {
+    local dir="$1"
+    # Ensure no path traversal
+    case "$dir" in
+        *../*|*/..*|../*|*..)
+            echo "Error: Path traversal detected in: $dir" >&2
+            return 1
+            ;;
+    esac
+    return 0
+}
+
 # Detect OS
 detect_os() {
     if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -88,11 +118,27 @@ install_for_user() {
     local install_dir="$HOME/.config/tailscale-cli-helpers"
     mkdir -p "$install_dir"
     
-    # Copy files
-    cp tailscale-ssh-helper.sh "$install_dir/"
-    cp tailscale-functions.sh "$install_dir/"
-    cp tailscale-completion.sh "$install_dir/"
-    cp tailscale-mussh.sh "$install_dir/" 2>/dev/null || true
+    # Security: Validate destination directory
+    validate_destination_dir "$install_dir" || return 1
+    
+    # Security: Validate and copy files safely
+    local required_files=("tailscale-ssh-helper.sh" "tailscale-functions.sh" "tailscale-completion.sh")
+    local optional_files=("tailscale-mussh.sh")
+    
+    for file in "${required_files[@]}"; do
+        validate_source_file "$file" || return 1
+        cp "$file" "$install_dir/" || {
+            echo "Error: Failed to copy $file" >&2
+            return 1
+        }
+        chmod 644 "$install_dir/$file"
+    done
+    
+    for file in "${optional_files[@]}"; do
+        if [[ -f "$file" ]]; then
+            validate_source_file "$file" && cp "$file" "$install_dir/" && chmod 644 "$install_dir/$file"
+        fi
+    done
     
     # Ask about ts dispatcher for user installations
     echo ""
@@ -105,8 +151,17 @@ install_for_user() {
     install_dispatcher=${install_dispatcher:-Y}
     
     if [[ "$install_dispatcher" =~ ^[Yy]$ ]]; then
-        cp tailscale-ts-dispatcher.sh "$install_dir/" 2>/dev/null || true
-        echo "✓ ts dispatcher will be installed"
+        if [[ -f "tailscale-ts-dispatcher.sh" ]]; then
+            validate_source_file "tailscale-ts-dispatcher.sh" && {
+                cp "tailscale-ts-dispatcher.sh" "$install_dir/" || {
+                    echo "Warning: Failed to copy ts dispatcher" >&2
+                }
+                chmod 644 "$install_dir/tailscale-ts-dispatcher.sh" 2>/dev/null
+                echo "✓ ts dispatcher will be installed"
+            }
+        else
+            echo "Warning: tailscale-ts-dispatcher.sh not found" >&2
+        fi
     else
         echo "✗ ts dispatcher skipped (you can still use tssh, tscp, trsync, tmussh directly)"
     fi
@@ -117,13 +172,32 @@ if [ -f \$HOME/.config/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
     . \$HOME/.config/tailscale-cli-helpers/tailscale-ssh-helper.sh
 fi"
     
-    # Check if already installed
-    if grep -q "tailscale-cli-helpers/tailscale-ssh-helper.sh" "$shell_rc" 2>/dev/null; then
-        echo "Already installed in $shell_rc"
+    # Security: Safe shell rc file modification
+    if [[ -f "$shell_rc" ]]; then
+        # Check if already installed
+        if grep -Fq "tailscale-cli-helpers/tailscale-ssh-helper.sh" "$shell_rc" 2>/dev/null; then
+            echo "Already installed in $shell_rc"
+        else
+            # Create backup before modification
+            cp "$shell_rc" "$shell_rc.backup.$(date +%s)" 2>/dev/null || true
+            echo "" >> "$shell_rc" || {
+                echo "Error: Cannot write to $shell_rc" >&2
+                return 1
+            }
+            echo "$source_line" >> "$shell_rc" || {
+                echo "Error: Failed to add configuration to $shell_rc" >&2
+                return 1
+            }
+            echo "Added to $shell_rc"
+        fi
     else
-        echo "" >> "$shell_rc"
-        echo "$source_line" >> "$shell_rc"
-        echo "Added to $shell_rc"
+        # Create new rc file with secure permissions
+        echo "$source_line" > "$shell_rc" || {
+            echo "Error: Cannot create $shell_rc" >&2
+            return 1
+        }
+        chmod 644 "$shell_rc"
+        echo "Created and configured $shell_rc"
     fi
     
     echo "Installation complete for $shell_name!"
@@ -138,43 +212,79 @@ install_system_wide() {
         return 1
     fi
     
-    # Create directories
+    # Security: Validate and create directories safely
     local install_dir="/usr/share/tailscale-cli-helpers"
-    mkdir -p "$install_dir"
-    mkdir -p "/etc/profile.d"
-    mkdir -p "/etc/bash_completion.d"
+    validate_destination_dir "$install_dir" || return 1
     
-    # Copy files to /usr/share
-    cp tailscale-ssh-helper.sh "$install_dir/"
-    cp tailscale-functions.sh "$install_dir/"
-    cp tailscale-completion.sh "$install_dir/"
-    cp tailscale-mussh.sh "$install_dir/" 2>/dev/null || true
-    cp tailscale-ts-dispatcher.sh "$install_dir/" 2>/dev/null || true
-    chmod 644 "$install_dir/tailscale-ssh-helper.sh"
-    chmod 644 "$install_dir/tailscale-functions.sh"
-    chmod 644 "$install_dir/tailscale-completion.sh"
-    chmod 644 "$install_dir/tailscale-mussh.sh" 2>/dev/null || true
-    chmod 644 "$install_dir/tailscale-ts-dispatcher.sh" 2>/dev/null || true
+    mkdir -p "$install_dir" || {
+        echo "Error: Failed to create $install_dir" >&2
+        return 1
+    }
+    mkdir -p "/etc/profile.d" || {
+        echo "Error: Failed to create /etc/profile.d" >&2
+        return 1
+    }
+    mkdir -p "/etc/bash_completion.d" || {
+        echo "Error: Failed to create /etc/bash_completion.d" >&2
+        return 1
+    }
     
-    # Create profile.d script for all shells
-    cat > /etc/profile.d/tailscale-cli-helpers.sh << 'EOF'
+    # Security: Validate and copy files to /usr/share
+    local required_files=("tailscale-ssh-helper.sh" "tailscale-functions.sh" "tailscale-completion.sh")
+    local optional_files=("tailscale-mussh.sh" "tailscale-ts-dispatcher.sh")
+    
+    for file in "${required_files[@]}"; do
+        validate_source_file "$file" || return 1
+        cp "$file" "$install_dir/" || {
+            echo "Error: Failed to copy $file to $install_dir" >&2
+            return 1
+        }
+        chmod 644 "$install_dir/$file" || {
+            echo "Warning: Failed to set permissions on $install_dir/$file" >&2
+        }
+    done
+    
+    for file in "${optional_files[@]}"; do
+        if [[ -f "$file" ]]; then
+            validate_source_file "$file" && {
+                cp "$file" "$install_dir/" && chmod 644 "$install_dir/$file"
+            } || {
+                echo "Warning: Failed to copy optional file $file" >&2
+            }
+        fi
+    done
+    
+    # Security: Create profile.d script safely
+    local profile_script="/etc/profile.d/tailscale-cli-helpers.sh"
+    cat > "$profile_script" << 'EOF' || {
+        echo "Error: Failed to create profile script" >&2
+        return 1
+    }
 # Tailscale CLI helpers
 if [ -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
     . /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh
 fi
 EOF
     
-    chmod 644 /etc/profile.d/tailscale-cli-helpers.sh
+    chmod 644 "$profile_script" || {
+        echo "Warning: Failed to set permissions on profile script" >&2
+    }
     
-    # Create bash completion script
-    cat > /etc/bash_completion.d/tailscale-cli-helpers << 'EOF'
+    # Security: Create bash completion script safely
+    local completion_script="/etc/bash_completion.d/tailscale-cli-helpers"
+    cat > "$completion_script" << 'EOF' || {
+        echo "Error: Failed to create completion script" >&2
+        return 1
+    }
 # Tailscale CLI helpers bash completion
 if [ -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then
     . /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh
 fi
 EOF
     
-    chmod 644 /etc/bash_completion.d/tailscale-cli-helpers
+    chmod 644 "$completion_script" || {
+        echo "Warning: Failed to set permissions on completion script" >&2
+    }
     
     echo "System-wide installation complete!"
     echo "Files installed to: $install_dir"

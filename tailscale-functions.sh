@@ -8,21 +8,51 @@ else
     _IS_ZSH=false
 fi
 
+# Security: Input validation functions
+_dcs_validate_hostname() {
+    local hostname="$1"
+    # Allow only alphanumeric chars, dots, hyphens, and underscores
+    # Prevent command injection and path traversal
+    [[ -n "$hostname" ]] || return 1
+    [[ "$hostname" =~ ^[a-zA-Z0-9._-]+$ ]] || return 1
+    [[ ${#hostname} -le 253 ]] || return 1  # RFC 1035 limit
+    return 0
+}
+
+# Security: Validate Tailscale JSON structure
+_dcs_validate_tailscale_json() {
+    local json="$1"
+    [[ -n "$json" ]] || return 1
+    # Verify basic structure exists
+    echo "$json" | jq -e '.Self and .Peer and .CurrentTailnet' >/dev/null 2>&1
+}
+
+# Security: Sanitize jq filter patterns
+_dcs_sanitize_pattern() {
+    local pattern="$1"
+    # Remove any potentially dangerous characters for regex patterns
+    echo "$pattern" | sed 's/[^a-zA-Z0-9._-]//g'
+}
+
 # Parse JSON to find a specific host and extract its data
 _dcs_find_host_in_json() {
     local json="$1"
     local search_hostname="$2"
     local magicdns_enabled="$3"
     
-    # Use jq to extract exact host match
-    local result=$(echo "$json" | jq -r --arg magicdns "$magicdns_enabled" '
+    # Security: Validate inputs
+    _dcs_validate_hostname "$search_hostname" || return 1
+    _dcs_validate_tailscale_json "$json" || return 1
+    
+    # Security: Use jq --arg to prevent injection
+    local result=$(echo "$json" | jq -r --arg hostname "$search_hostname" --arg magicdns "$magicdns_enabled" '
         # Check Self host first
-        (if .Self.HostName == "'"$search_hostname"'" then 
+        (if .Self.HostName == $hostname then 
             "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online,self"
         else empty end),
         # Check Peer hosts
         (.Peer | to_entries[] | .value | 
-            if .HostName == "'"$search_hostname"'" then
+            if .HostName == $hostname then
                 "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end),\(.PublicKey)"
             else empty end
         )
@@ -42,21 +72,30 @@ _dcs_find_hosts_matching() {
     local search_pattern="$2"
     local magicdns_enabled="$3"
     
-    # Use jq to extract host information properly
-    echo "$json" | jq -r --arg magicdns "$magicdns_enabled" '
+    # Security: Validate inputs
+    _dcs_validate_hostname "$search_pattern" || return 1
+    _dcs_validate_tailscale_json "$json" || return 1
+    
+    # Security: Sanitize pattern for regex use
+    local safe_pattern=$(_dcs_sanitize_pattern "$search_pattern")
+    
+    # Security: Use jq --arg to prevent injection
+    echo "$json" | jq -r --arg pattern "$safe_pattern" --arg magicdns "$magicdns_enabled" '
         # Extract Self host if it matches
-        (if (.Self.HostName | test("'"$search_pattern"'")) then 
+        (if (.Self.HostName | test($pattern)) then 
             "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online,self"
         else empty end),
         # Extract matching Peer hosts  
         (.Peer | to_entries[] | .value | 
-            if (.HostName | test("'"$search_pattern"'")) then
+            if (.HostName | test($pattern)) then
                 "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end),\(.PublicKey)"
             else empty end
         )
     ' 2>/dev/null || {
-        # Fallback to grep-based approach if jq fails
-        echo "$json" | grep -o '"HostName": *"[^"]*'"$search_pattern"'[^"]*"' | sed 's/.*"HostName": *"\([^"]*\)".*/\1/' | head -1
+        # Security: Safe fallback without pattern injection
+        echo "$json" | jq -r --arg pattern "$safe_pattern" '
+            (.Self.HostName), (.Peer | to_entries[] | .value.HostName) | 
+            select(test($pattern))' 2>/dev/null | head -1
     }
 }
 
@@ -113,7 +152,10 @@ _dcs_levenshtein() {
 
 # Check if MagicDNS is enabled
 _dcs_is_magicdns_enabled() {
-    local ts_json=$(tailscale status --json 2>/dev/null)
+    local ts_json
+    if ! ts_json=$(tailscale status --json 2>/dev/null) || ! _dcs_validate_tailscale_json "$ts_json"; then
+        return 1
+    fi
     local enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
     
     if [[ "$enabled" == "true" ]]; then
@@ -130,9 +172,11 @@ _dcs_is_magicdns_working() {
         return 1
     fi
     
-    # Check if resolv.conf points to Tailscale DNS (100.100.100.100)
-    if grep -q "^nameserver 100.100.100.100" /etc/resolv.conf 2>/dev/null; then
-        return 0
+    # Security: Safe check for Tailscale DNS configuration
+    # Use fixed string matching to prevent injection
+    if [[ -r /etc/resolv.conf ]]; then
+        grep -Fxq "nameserver 100.100.100.100" /etc/resolv.conf 2>/dev/null || \
+        grep -q "^nameserver 100\.100\.100\.100" /etc/resolv.conf 2>/dev/null
     else
         return 1
     fi
@@ -176,11 +220,21 @@ tssh_main() {
         search_pattern="$hostname"
     fi
     
-    # Get tailscale JSON status once
-    local ts_json=$(tailscale status --json 2>/dev/null)
+    # Security: Get tailscale JSON status with validation
+    local ts_json
+    if ! ts_json=$(tailscale status --json 2>/dev/null); then
+        echo "Failed to get Tailscale status. Is Tailscale running?" >&2
+        return 1
+    fi
     
-    if [ -z "$ts_json" ]; then
-        echo "No Tailscale hosts found. Is Tailscale running?"
+    if [[ -z "$ts_json" ]]; then
+        echo "No Tailscale hosts found. Is Tailscale running?" >&2
+        return 1
+    fi
+    
+    # Security: Validate JSON structure
+    if ! _dcs_validate_tailscale_json "$ts_json"; then
+        echo "Invalid Tailscale status format" >&2
         return 1
     fi
     
@@ -250,12 +304,18 @@ tssh_main() {
     if [[ ${#matching_hosts[@]} -eq 0 ]]; then
         echo "Host not found in Tailscale network, checking known_hosts..."
         
-        if grep -q "$search_pattern" ~/.ssh/known_hosts 2>/dev/null; then
-            echo -e "${BLUE}[SSH]${RESET} Found in known_hosts, connecting to ${BLUE}$user@$hostname${RESET}..."
-            ssh "$user@$hostname"
-            return $?
+        if [[ -r ~/.ssh/known_hosts ]] && _dcs_validate_hostname "$search_pattern"; then
+            if grep -Fq "$search_pattern" ~/.ssh/known_hosts 2>/dev/null; then
+                echo -e "${BLUE}[SSH]${RESET} Found in known_hosts, connecting to ${BLUE}$user@$hostname${RESET}..."
+                # Security: Use -- to prevent hostname being interpreted as option
+                ssh -- "$user@$hostname"
+                return $?
+            else
+                echo "Host not found in known_hosts either" >&2
+                return 1
+            fi
         else
-            echo "Host not found in known_hosts either"
+            echo "Host not found and cannot access known_hosts" >&2
             return 1
         fi
     elif [[ ${#matching_hosts[@]} -eq 1 ]]; then
@@ -267,14 +327,16 @@ tssh_main() {
         if _dcs_is_magicdns_working; then
             # MagicDNS is properly configured - use DNS name
             echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}$user@$real_hostname${RESET} (${ip})..."
-            ssh "$user@$real_hostname"
+            # Security: Use -- to prevent arguments being interpreted as options
+            ssh -- "$user@$real_hostname"
         else
             # MagicDNS not working - use IP address
             echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}$user@$real_hostname${RESET} (${ip})..."
             if [[ "$magicdns_enabled" == "true" ]]; then
                 echo "Note: MagicDNS is enabled but resolv.conf is not configured properly. Using IP address."
             fi
-            ssh "$user@$ip"
+            # Security: Use -- to prevent arguments being interpreted as options
+            ssh -- "$user@$ip"
         fi
     else
         # Multiple matches
@@ -326,14 +388,16 @@ tssh_main() {
             if _dcs_is_magicdns_working; then
                 # MagicDNS is properly configured - use DNS name
                 echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}$user@$selected_hostname${RESET} (${selected_ip})..."
-                ssh "$user@$selected_hostname"
+                # Security: Use -- to prevent arguments being interpreted as options
+                ssh -- "$user@$selected_hostname"
             else
                 # MagicDNS not working - use IP address
                 echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}$user@$selected_hostname${RESET} (${selected_ip})..."
                 if [[ "$magicdns_enabled" == "true" ]]; then
                     echo "Note: MagicDNS is enabled but resolv.conf is not configured properly. Using IP address."
                 fi
-                ssh "$user@$selected_ip"
+                # Security: Use -- to prevent arguments being interpreted as options
+                ssh -- "$user@$selected_ip"
             fi
         else
             echo "Invalid selection"
@@ -395,18 +459,28 @@ dcs_ssh_copy_id() {
         ((i++))
     done
 
-    # Function to check if IP is in Tailscale range
+    # Security: Function to safely check if IP is in Tailscale range
     is_tailscale_ip() {
         local ip="$1"
         
-        # Use a more compatible regex pattern
-        if ! echo "$ip" | grep -qE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'; then
+        # Validate IP format with safer pattern
+        if ! [[ "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             return 1
         fi
         
-        local first_octet=$(echo "$ip" | cut -d'.' -f1)
-        local second_octet=$(echo "$ip" | cut -d'.' -f2)
+        # Extract octets safely
+        local IFS='.'
+        local octets=($ip)
+        local first_octet=${octets[0]}
+        local second_octet=${octets[1]}
         
+        # Validate octet ranges
+        if [[ "$first_octet" -lt 0 || "$first_octet" -gt 255 ]] || 
+           [[ "$second_octet" -lt 0 || "$second_octet" -gt 255 ]]; then
+            return 1
+        fi
+        
+        # Check Tailscale range (100.64.0.0/10)
         if [[ "$first_octet" -eq 100 ]] && [[ "$second_octet" -ge 64 ]] && [[ "$second_octet" -le 127 ]]; then
             return 0
         fi
@@ -431,26 +505,30 @@ dcs_ssh_copy_id() {
             search_pattern="$hostname"
         fi
         
-        # First check known_hosts
-        if grep -q "^$search_pattern " ~/.ssh/known_hosts 2>/dev/null || grep -q "^$search_pattern," ~/.ssh/known_hosts 2>/dev/null; then
+        # Security: Safe check of known_hosts with validated input
+        if [[ -r ~/.ssh/known_hosts ]] && _dcs_validate_hostname "$search_pattern"; then
+            if grep -Fq "$search_pattern " ~/.ssh/known_hosts 2>/dev/null || grep -Fq "$search_pattern," ~/.ssh/known_hosts 2>/dev/null; then
             if is_tailscale_ip "$search_pattern"; then
-                # Verify if Tailscale IP is still valid
-                local ts_json=$(tailscale status --json 2>/dev/null)
-                if [[ -n "$ts_json" ]] && echo "$ts_json" | grep -q "\"$search_pattern\""; then
-                    echo "$input_host"
-                    return 0
+                # Security: Verify if Tailscale IP is still valid
+                local ts_json
+                if ts_json=$(tailscale status --json 2>/dev/null) && _dcs_validate_tailscale_json "$ts_json"; then
+                    if echo "$ts_json" | jq -e --arg ip "$search_pattern" '.Self.TailscaleIPs[] == $ip or (.Peer | to_entries[] | .value.TailscaleIPs[] == $ip)' >/dev/null 2>&1; then
+                        echo "$input_host"
+                        return 0
+                    fi
                 fi
             else
                 echo "$input_host"
                 return 0
             fi
-        elif host "$search_pattern" >/dev/null 2>&1 || getent hosts "$search_pattern" >/dev/null 2>&1; then
+            fi
+        elif _dcs_validate_hostname "$search_pattern" && (host "$search_pattern" >/dev/null 2>&1 || getent hosts "$search_pattern" >/dev/null 2>&1); then
             echo "$input_host"
             return 0
         else
-            # Try Tailscale
-            local ts_json=$(tailscale status --json 2>/dev/null)
-            if [[ -n "$ts_json" ]]; then
+            # Security: Try Tailscale safely
+            local ts_json
+            if ts_json=$(tailscale status --json 2>/dev/null) && _dcs_validate_tailscale_json "$ts_json"; then
                 local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
                 local host_data=$(_dcs_find_host_in_json "$ts_json" "$search_pattern" "$magicdns_enabled")
                 if [[ -n "$host_data" ]]; then
@@ -523,9 +601,9 @@ tscp_main() {
                 hostname="$host_part"
             fi
             
-            # Try to resolve with Tailscale
-            local ts_json=$(tailscale status --json 2>/dev/null)
-            if [[ -n "$ts_json" ]]; then
+            # Security: Try to resolve with Tailscale safely
+            local ts_json
+            if ts_json=$(tailscale status --json 2>/dev/null) && _dcs_validate_tailscale_json "$ts_json"; then
                 local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
                 local host_data=$(_dcs_find_host_in_json "$ts_json" "$hostname" "$magicdns_enabled")
                 
@@ -547,7 +625,11 @@ tscp_main() {
         resolved_args+=("$arg")
     done
     
-    # Execute scp with resolved arguments
+    # Security: Execute scp with resolved arguments safely
+    if [[ ${#resolved_args[@]} -eq 0 ]]; then
+        echo "Error: No arguments provided to scp" >&2
+        return 1
+    fi
     scp "${resolved_args[@]}"
 }
 
@@ -577,9 +659,9 @@ trsync_main() {
                 hostname="$host_part"
             fi
             
-            # Try to resolve with Tailscale
-            local ts_json=$(tailscale status --json 2>/dev/null)
-            if [[ -n "$ts_json" ]]; then
+            # Security: Try to resolve with Tailscale safely
+            local ts_json
+            if ts_json=$(tailscale status --json 2>/dev/null) && _dcs_validate_tailscale_json "$ts_json"; then
                 local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
                 local host_data=$(_dcs_find_host_in_json "$ts_json" "$hostname" "$magicdns_enabled")
                 
@@ -601,7 +683,11 @@ trsync_main() {
         resolved_args+=("$arg")
     done
     
-    # Execute rsync with resolved arguments
+    # Security: Execute rsync with resolved arguments safely
+    if [[ ${#resolved_args[@]} -eq 0 ]]; then
+        echo "Error: No arguments provided to rsync" >&2
+        return 1
+    fi
     rsync "${resolved_args[@]}"
 }
 

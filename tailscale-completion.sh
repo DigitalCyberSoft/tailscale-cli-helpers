@@ -118,10 +118,20 @@ _tssh_completions() {
         local users=("root" "admin" "ubuntu" "ec2-user" "fedora" "centos")
         local default_user="root"
         
-        # Get all available tailscale hosts using JSON
+        # Security: Get all available tailscale hosts using JSON safely
         local ts_hosts=()
-        local ts_json=$(tailscale status --json 2>/dev/null)
+        local ts_json
         local unique_hosts=()
+        
+        # Security: Validate JSON before processing
+        if ! ts_json=$(tailscale status --json 2>/dev/null); then
+            return 0
+        fi
+        
+        # Basic JSON validation
+        if ! echo "$ts_json" | jq -e '.Self and .Peer' >/dev/null 2>&1; then
+            return 0
+        fi
         
         if [[ -n "$ts_json" ]]; then
             # Check if MagicDNS is enabled
