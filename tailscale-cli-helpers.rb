@@ -1,8 +1,8 @@
 class TailscaleCliHelpers < Formula
   desc "Bash/Zsh functions for easy SSH access to Tailscale nodes"
   homepage "https://github.com/DigitalCyberSoft/tailscale-cli-helpers"
-  url "https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.1.3.tar.gz"
-  sha256 "6584f0879bf3701ee6a5b103a68947690d07042b14936c30dde982779ba84b59"
+  url "https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.2.0.tar.gz"
+  sha256 "03d2b487013b33f4b690455d8435fc6545b05d22736a3b2370d1b96277b56f3a"
   license "MIT"
 
   depends_on "jq"
@@ -13,6 +13,8 @@ class TailscaleCliHelpers < Formula
     libexec.install "tailscale-ssh-helper.sh"
     libexec.install "tailscale-functions.sh"
     libexec.install "tailscale-completion.sh"
+    libexec.install "tailscale-mussh.sh"
+    libexec.install "tailscale-ts-dispatcher.sh"
     
     # Install setup script
     libexec.install "setup.sh"
@@ -50,10 +52,12 @@ class TailscaleCliHelpers < Formula
       2. Run: source ~/.zshrc (or ~/.bash_profile)
       
       Usage:
-        ts hostname              # Connect to Tailscale host
-        ts user@hostname         # Connect as specific user
-        ssh-copy-id user@host    # Copy SSH key with Tailscale support
-        ts <TAB>                 # Tab completion
+        tssh hostname                    # SSH to Tailscale host
+        ts hostname                      # SSH via dispatcher (same as tssh)
+        tscp file.txt host:/path/        # Copy files
+        trsync -av dir/ host:/path/      # Sync directories
+        tmussh -h host1 host2 -c "cmd"   # Parallel SSH (requires mussh)
+        ts <TAB>                         # Tab completion
         
       Requirements:
         - Tailscale must be installed and running
@@ -62,7 +66,7 @@ class TailscaleCliHelpers < Formula
   end
 
   test do
-    # Test that the main script can be sourced
-    system "bash", "-c", "source #{libexec}/tailscale-ssh-helper.sh && type ts"
+    # Test that the main script can be sourced and commands are available
+    system "bash", "-c", "source #{libexec}/tailscale-ssh-helper.sh && type tssh && type ts"
   end
 end
