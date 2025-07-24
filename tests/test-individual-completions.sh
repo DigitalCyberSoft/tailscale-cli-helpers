@@ -87,9 +87,20 @@ run_completion_test "trsync remote path completion" "trsync" "host:" true
 
 echo
 
-# Test 4: tmussh completions
-echo -e "${YELLOW}4. Testing tmussh completions${RESET}"
-if command -v mussh &> /dev/null; then
+# Test 4: tsftp completions
+echo -e "${YELLOW}4. Testing tsftp completions${RESET}"
+if [[ "$_HAS_SFTP" == "true" ]]; then
+    run_completion_test "tsftp hostname completion" "tsftp" "" true
+    run_completion_test "tsftp flag completion" "tsftp" "-" false
+else
+    echo -e "${YELLOW}ℹ sftp not installed, skipping tsftp completion tests${RESET}"
+fi
+
+echo
+
+# Test 5: tmussh completions
+echo -e "${YELLOW}5. Testing tmussh completions${RESET}"
+if [[ "$_HAS_MUSSH" == "true" ]]; then
     run_completion_test "tmussh hostname completion" "tmussh" "" true
     run_completion_test "tmussh flag completion" "tmussh" "-" false
     run_completion_test "tmussh host list completion" "tmussh" "-h" false
@@ -99,8 +110,8 @@ fi
 
 echo
 
-# Test 5: ts dispatcher completions
-echo -e "${YELLOW}5. Testing ts dispatcher completions${RESET}"
+# Test 6: ts dispatcher completions
+echo -e "${YELLOW}6. Testing ts dispatcher completions${RESET}"
 
 test_ts_subcommand_completion() {
     export COMP_WORDS=("ts" "")
@@ -185,10 +196,13 @@ echo -e "${BLUE}To test completions interactively, try:${RESET}"
 echo "  tssh <TAB>              # Should show Tailscale hosts"
 echo "  tscp file.txt host<TAB> # Should complete hostnames"
 echo "  trsync -av dir/ host<TAB>:/path/ # Should complete hostnames"
-echo "  ts <TAB>                # Should show subcommands (ssh, scp, rsync)"
+if [[ "$_HAS_SFTP" == "true" ]]; then
+    echo "  tsftp host<TAB>         # Should complete hostnames"
+fi
+echo "  ts <TAB>                # Should show subcommands (ssh, scp, rsync, sftp)"
 echo "  ts ssh <TAB>            # Should show hosts like tssh"
 
-if command -v mussh &> /dev/null; then
+if [[ "$_HAS_MUSSH" == "true" ]]; then
     echo "  tmussh -h host<TAB>     # Should complete hostnames"
     echo "  ts mussh <TAB>          # Should show hosts"
 fi

@@ -27,7 +27,7 @@ else
 fi
 
 # Source mussh integration if mussh is available
-if command -v mussh &> /dev/null; then
+if [[ "$_HAS_MUSSH" == "true" ]]; then
     if [[ -f "$SCRIPT_DIR/tailscale-mussh.sh" ]]; then
         source "$SCRIPT_DIR/tailscale-mussh.sh"
     elif [[ -f "/usr/share/tailscale-cli-helpers/tailscale-mussh.sh" ]]; then

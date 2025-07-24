@@ -43,8 +43,21 @@ else
 fi
 
 echo ""
-echo "5. Testing tmussh command"
-if command -v mussh &> /dev/null; then
+echo "5. Testing tsftp command"
+if [[ "$_HAS_SFTP" == "true" ]]; then
+    if type tsftp >/dev/null 2>&1; then
+        echo "✓ tsftp command found (sftp is installed)"
+    else
+        echo "✗ tsftp command not found (but sftp is installed)"
+        exit 1
+    fi
+else
+    echo "ℹ sftp not installed, skipping tsftp test"
+fi
+
+echo ""
+echo "6. Testing tmussh command"
+if [[ "$_HAS_MUSSH" == "true" ]]; then
     if type tmussh >/dev/null 2>&1; then
         echo "✓ tmussh command found (mussh is installed)"
     else
@@ -56,7 +69,7 @@ else
 fi
 
 echo ""
-echo "6. Testing tssh usage output"
+echo "7. Testing tssh usage output"
 tssh_output=$(tssh 2>&1 || true)
 if echo "$tssh_output" | grep -q "Usage: tssh"; then
     echo "✓ tssh shows correct usage"
@@ -67,7 +80,7 @@ else
 fi
 
 echo ""
-echo "7. Testing ts dispatcher usage"
+echo "8. Testing ts dispatcher usage"
 ts_output=$(ts 2>&1 || true)
 if echo "$ts_output" | grep -q "Usage: ts \[command\]"; then
     echo "✓ ts dispatcher shows correct usage"
@@ -78,7 +91,7 @@ else
 fi
 
 echo ""
-echo "8. Testing ts dispatcher subcommands"
+echo "9. Testing ts dispatcher subcommands"
 if echo "$ts_output" | grep -q "ssh.*SSH to host"; then
     echo "✓ ts shows ssh subcommand"
 else
@@ -100,8 +113,17 @@ else
     exit 1
 fi
 
+if [[ "$_HAS_SFTP" == "true" ]]; then
+    if echo "$ts_output" | grep -q "sftp.*Interactive file transfer"; then
+        echo "✓ ts shows sftp subcommand"
+    else
+        echo "✗ ts missing sftp subcommand"
+        exit 1
+    fi
+fi
+
 echo ""
-echo "9. Testing command exports"
+echo "10. Testing command exports"
 if declare -f tssh_main >/dev/null; then
     echo "✓ tssh_main function exported"
 else
@@ -121,6 +143,15 @@ if declare -f trsync_main >/dev/null; then
 else
     echo "✗ trsync_main function not exported"
     exit 1
+fi
+
+if [[ "$_HAS_SFTP" == "true" ]]; then
+    if declare -f tsftp_main >/dev/null; then
+        echo "✓ tsftp_main function exported"
+    else
+        echo "✗ tsftp_main function not exported"
+        exit 1
+    fi
 fi
 
 echo ""

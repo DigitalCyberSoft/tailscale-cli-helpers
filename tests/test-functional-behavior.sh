@@ -1,5 +1,5 @@
 #!/bin/bash
-# Functional behavior tests for tscp, trsync, and tmussh commands
+# Functional behavior tests for tscp, trsync, tsftp, and tmussh commands
 # Tests actual command behavior with mocked external dependencies
 
 set -e
@@ -236,10 +236,74 @@ run_test "trsync with complex options" "test_trsync_complex_options"
 
 echo
 
-# Test 3: tmussh functionality (if mussh available)
-echo -e "${YELLOW}3. Testing tmussh functionality${RESET}"
+# Test 3: tsftp functionality (if sftp available)
+echo -e "${YELLOW}3. Testing tsftp functionality${RESET}"
 
-if command -v mussh &> /dev/null; then
+if [[ "$_HAS_SFTP" == "true" ]]; then
+    test_tsftp_basic() {
+        setup_mocks
+        
+        # Mock sftp to capture arguments
+        sftp() {
+            echo "SFTP_ARGS: $*" > /tmp/test_sftp_output
+        }
+        export -f sftp
+        
+        # Test basic sftp command
+        tsftp test-host >/dev/null 2>&1
+        
+        local result=1
+        if [[ -f /tmp/test_sftp_output ]]; then
+            local output=$(cat /tmp/test_sftp_output)
+            if [[ "$output" =~ "test-host" ]]; then
+                result=0
+            fi
+        fi
+        
+        cleanup_mocks
+        rm -f /tmp/test_sftp_output
+        unset -f sftp
+        return $result
+    }
+    
+    test_tsftp_with_user() {
+        setup_mocks
+        
+        # Mock sftp to capture arguments
+        sftp() {
+            echo "SFTP_ARGS: $*" > /tmp/test_sftp_output
+        }
+        export -f sftp
+        
+        # Test sftp with user specification
+        tsftp admin@test-host >/dev/null 2>&1
+        
+        local result=1
+        if [[ -f /tmp/test_sftp_output ]]; then
+            local output=$(cat /tmp/test_sftp_output)
+            if [[ "$output" =~ "admin@" ]]; then
+                result=0
+            fi
+        fi
+        
+        cleanup_mocks
+        rm -f /tmp/test_sftp_output
+        unset -f sftp
+        return $result
+    }
+    
+    run_test "tsftp basic functionality" "test_tsftp_basic"
+    run_test "tsftp with user specification" "test_tsftp_with_user"
+else
+    echo -e "${YELLOW}ℹ sftp not installed, skipping tsftp functional tests${RESET}"
+fi
+
+echo
+
+# Test 4: tmussh functionality (if mussh available)
+echo -e "${YELLOW}4. Testing tmussh functionality${RESET}"
+
+if [[ "$_HAS_MUSSH" == "true" ]]; then
     test_tmussh_basic() {
         setup_mocks
         
@@ -284,8 +348,8 @@ fi
 
 echo
 
-# Test 4: Host resolution behavior
-echo -e "${YELLOW}4. Testing host resolution${RESET}"
+# Test 5: Host resolution behavior
+echo -e "${YELLOW}5. Testing host resolution${RESET}"
 
 test_host_resolution_with_tailscale() {
     setup_mocks

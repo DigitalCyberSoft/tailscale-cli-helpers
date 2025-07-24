@@ -8,6 +8,28 @@ else
     _IS_ZSH=false
 fi
 
+# Check command availability once at load time
+_HAS_SCP=false
+_HAS_SFTP=false
+_HAS_RSYNC=false
+_HAS_MUSSH=false
+
+if command -v scp >/dev/null 2>&1; then
+    _HAS_SCP=true
+fi
+
+if command -v sftp >/dev/null 2>&1; then
+    _HAS_SFTP=true
+fi
+
+if command -v rsync >/dev/null 2>&1; then
+    _HAS_RSYNC=true
+fi
+
+if command -v mussh >/dev/null 2>&1; then
+    _HAS_MUSSH=true
+fi
+
 # Security: Input validation functions
 _dcs_validate_hostname() {
     local hostname="$1"
@@ -179,6 +201,119 @@ _dcs_is_magicdns_working() {
         grep -q "^nameserver 100\.100\.100\.100" /etc/resolv.conf 2>/dev/null
     else
         return 1
+    fi
+}
+
+# Reusable function to resolve Tailscale hostname using fuzzy matching
+# Returns: "user@resolved_host" or original input if not found
+# Uses the same sophisticated logic as tssh with Levenshtein distance and multiple match handling
+_dcs_resolve_tailscale_host() {
+    local input_host="$1"
+    local user="root"
+    local hostname=""
+    local search_pattern=""
+    
+    # Parse user@host format
+    if [[ "$input_host" == *"@"* ]]; then
+        user="${input_host%%@*}"
+        hostname="${input_host#*@}"
+        search_pattern="$hostname"
+    else
+        hostname="$input_host"
+        search_pattern="$hostname"
+    fi
+    
+    # Security: Validate hostname input
+    if ! _dcs_validate_hostname "$search_pattern"; then
+        echo "$input_host"
+        return 1
+    fi
+    
+    # Security: Get tailscale JSON status with validation
+    local ts_json
+    if ! ts_json=$(tailscale status --json 2>/dev/null); then
+        echo "$input_host"
+        return 1
+    fi
+    
+    if [[ -z "$ts_json" ]] || ! _dcs_validate_tailscale_json "$ts_json"; then
+        echo "$input_host"
+        return 1
+    fi
+    
+    # Check MagicDNS status once
+    local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
+    
+    # Find all matching hosts and sort by Levenshtein distance (same logic as tssh)
+    local all_matches=()
+    local matching_hosts=()
+    
+    # Handle process substitution compatibility
+    if [[ "$_IS_ZSH" == "true" ]]; then
+        # zsh needs different handling for process substitution with arrays
+        local matches_output
+        matches_output=$(_dcs_find_hosts_matching "$ts_json" "$search_pattern" "$magicdns_enabled")
+        if [[ -n "$matches_output" ]]; then
+            while IFS= read -r match; do
+                if [[ -n "$match" ]]; then
+                    all_matches+=("$match")
+                fi
+            done <<< "$matches_output"
+        fi
+    else
+        while IFS= read -r match; do
+            if [[ -n "$match" ]]; then
+                all_matches+=("$match")
+            fi
+        done < <(_dcs_find_hosts_matching "$ts_json" "$search_pattern" "$magicdns_enabled")
+    fi
+    
+    # If we have matches, sort them by Levenshtein distance
+    if [[ ${#all_matches[@]} -gt 0 ]]; then
+        local distance_matches=()
+        
+        # Calculate Levenshtein distance for each match
+        for match in "${all_matches[@]}"; do
+            local match_hostname=$(echo "$match" | cut -d',' -f2)
+            local distance=$(_dcs_levenshtein "$search_pattern" "$match_hostname")
+            distance_matches+=("$distance:$match")
+        done
+        
+        # Sort by distance (lowest first)
+        if [[ "$_IS_ZSH" == "true" ]]; then
+            # zsh array sorting
+            distance_matches=("${(@f)$(printf '%s\n' "${distance_matches[@]}" | sort -n)}")
+        else
+            # bash array sorting
+            IFS=$'\n' distance_matches=($(sort -n <<< "${distance_matches[*]}"))
+        fi
+        
+        # Extract the sorted matches
+        for entry in "${distance_matches[@]}"; do
+            matching_hosts+=("${entry#*:}")
+        done
+    fi
+    
+    # Handle results - use best match for file transfer commands
+    if [[ ${#matching_hosts[@]} -eq 0 ]]; then
+        # No matches found
+        echo "$input_host"
+        return 1
+    else
+        # Use the best match (first in sorted list)
+        local host_info="${matching_hosts[0]}"
+        local ip=$(echo "$host_info" | cut -d ',' -f 1)
+        local real_hostname=$(echo "$host_info" | cut -d ',' -f 2)
+        
+        if _dcs_is_magicdns_working; then
+            # MagicDNS is properly configured - use DNS name
+            echo "${user}@${real_hostname}"
+            return 0
+        else
+            # MagicDNS not working - use IP address
+            echo "${user}@${ip}"
+            return 0
+        fi
     fi
 }
 
@@ -580,121 +715,121 @@ dcs_ssh_copy_id() {
     fi
 }
 
-# Tailscale SCP function
-tscp_main() {
-    # Simple wrapper that resolves Tailscale hostnames for scp
-    local resolved_args=()
-    
-    for arg in "$@"; do
-        if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]]; then
-            # This looks like a remote host:path spec
-            local host_part="${arg%%:*}"
-            local path_part="${arg#*:}"
-            local user="root"
-            local hostname=""
-            
-            # Parse user@host format
-            if [[ "$host_part" == *"@"* ]]; then
-                user="${host_part%%@*}"
-                hostname="${host_part#*@}"
-            else
-                hostname="$host_part"
-            fi
-            
-            # Security: Try to resolve with Tailscale safely
-            local ts_json
-            if ts_json=$(tailscale status --json 2>/dev/null) && _dcs_validate_tailscale_json "$ts_json"; then
-                local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
-                local host_data=$(_dcs_find_host_in_json "$ts_json" "$hostname" "$magicdns_enabled")
-                
-                if [[ -n "$host_data" ]]; then
-                    local found_ip=$(echo "$host_data" | cut -d',' -f1)
-                    local found_hostname=$(echo "$host_data" | cut -d',' -f2)
-                    
-                    if _dcs_is_magicdns_working; then
-                        resolved_args+=("${user}@${found_hostname}:${path_part}")
-                    else
-                        resolved_args+=("${user}@${found_ip}:${path_part}")
-                    fi
-                    continue
-                fi
-            fi
-        fi
+# Tailscale SCP function (only available if scp is installed)
+if [[ "$_HAS_SCP" == "true" ]]; then
+    tscp_main() {
+        # Simple wrapper that resolves Tailscale hostnames for scp
+        local resolved_args=()
         
-        # Use original argument if not resolved
-        resolved_args+=("$arg")
-    done
-    
-    # Security: Execute scp with resolved arguments safely
-    if [[ ${#resolved_args[@]} -eq 0 ]]; then
-        echo "Error: No arguments provided to scp" >&2
-        return 1
-    fi
-    scp "${resolved_args[@]}"
-}
-
-# Create wrapper function
-tscp() {
-    tscp_main "$@"
-}
-
-# Tailscale rsync function
-trsync_main() {
-    # Simple wrapper that resolves Tailscale hostnames for rsync
-    local resolved_args=()
-    
-    for arg in "$@"; do
-        if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]]; then
-            # This looks like a remote host:path spec
-            local host_part="${arg%%:*}"
-            local path_part="${arg#*:}"
-            local user="root"
-            local hostname=""
-            
-            # Parse user@host format
-            if [[ "$host_part" == *"@"* ]]; then
-                user="${host_part%%@*}"
-                hostname="${host_part#*@}"
-            else
-                hostname="$host_part"
-            fi
-            
-            # Security: Try to resolve with Tailscale safely
-            local ts_json
-            if ts_json=$(tailscale status --json 2>/dev/null) && _dcs_validate_tailscale_json "$ts_json"; then
-                local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
-                local host_data=$(_dcs_find_host_in_json "$ts_json" "$hostname" "$magicdns_enabled")
+        for arg in "$@"; do
+            if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]]; then
+                # This looks like a remote host:path spec
+                local host_part="${arg%%:*}"
+                local path_part="${arg#*:}"
                 
-                if [[ -n "$host_data" ]]; then
-                    local found_ip=$(echo "$host_data" | cut -d',' -f1)
-                    local found_hostname=$(echo "$host_data" | cut -d',' -f2)
-                    
-                    if _dcs_is_magicdns_working; then
-                        resolved_args+=("${user}@${found_hostname}:${path_part}")
-                    else
-                        resolved_args+=("${user}@${found_ip}:${path_part}")
-                    fi
-                    continue
+                # Try to resolve the hostname using fuzzy matching
+                local resolved_host=$(_dcs_resolve_tailscale_host "$host_part")
+                if [[ $? -eq 0 ]]; then
+                    resolved_args+=("${resolved_host}:${path_part}")
+                else
+                    resolved_args+=("$arg")
                 fi
+            else
+                # Use original argument if not a host:path spec
+                resolved_args+=("$arg")
             fi
-        fi
+        done
         
-        # Use original argument if not resolved
-        resolved_args+=("$arg")
-    done
-    
-    # Security: Execute rsync with resolved arguments safely
-    if [[ ${#resolved_args[@]} -eq 0 ]]; then
-        echo "Error: No arguments provided to rsync" >&2
-        return 1
-    fi
-    rsync "${resolved_args[@]}"
-}
+        # Security: Execute scp with resolved arguments safely
+        if [[ ${#resolved_args[@]} -eq 0 ]]; then
+            echo "Error: No arguments provided to scp" >&2
+            return 1
+        fi
+        scp "${resolved_args[@]}"
+    }
 
-# Create wrapper function
-trsync() {
-    trsync_main "$@"
-}
+    # Create wrapper function
+    tscp() {
+        tscp_main "$@"
+    }
+fi
+
+# Tailscale rsync function (only available if rsync is installed)
+if [[ "$_HAS_RSYNC" == "true" ]]; then
+    trsync_main() {
+        # Simple wrapper that resolves Tailscale hostnames for rsync
+        local resolved_args=()
+        
+        for arg in "$@"; do
+            if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]]; then
+                # This looks like a remote host:path spec
+                local host_part="${arg%%:*}"
+                local path_part="${arg#*:}"
+                
+                # Try to resolve the hostname using fuzzy matching
+                local resolved_host=$(_dcs_resolve_tailscale_host "$host_part")
+                if [[ $? -eq 0 ]]; then
+                    resolved_args+=("${resolved_host}:${path_part}")
+                else
+                    resolved_args+=("$arg")
+                fi
+            else
+                # Use original argument if not a host:path spec
+                resolved_args+=("$arg")
+            fi
+        done
+        
+        # Security: Execute rsync with resolved arguments safely
+        if [[ ${#resolved_args[@]} -eq 0 ]]; then
+            echo "Error: No arguments provided to rsync" >&2
+            return 1
+        fi
+        rsync "${resolved_args[@]}"
+    }
+
+    # Create wrapper function
+    trsync() {
+        trsync_main "$@"
+    }
+fi
+
+# Tailscale SFTP function (only available if sftp is installed)
+if [[ "$_HAS_SFTP" == "true" ]]; then
+    tsftp_main() {
+        # Simple wrapper that resolves Tailscale hostnames for sftp
+        local resolved_args=()
+        local target_host=""
+        
+        for arg in "$@"; do
+            # Check if this looks like a hostname argument (not a flag)
+            if [[ "$arg" != "-"* ]] && [[ -z "$target_host" ]]; then
+                # This should be the hostname - try to resolve using fuzzy matching
+                local resolved_host=$(_dcs_resolve_tailscale_host "$arg")
+                if [[ $? -eq 0 ]]; then
+                    resolved_args+=("$resolved_host")
+                    target_host="$arg"
+                else
+                    resolved_args+=("$arg")
+                fi
+            else
+                # Use original argument if not a hostname or already found target
+                resolved_args+=("$arg")
+            fi
+        done
+        
+        # Security: Execute sftp with resolved arguments safely
+        if [[ ${#resolved_args[@]} -eq 0 ]]; then
+            echo "Error: No arguments provided to sftp" >&2
+            return 1
+        fi
+        sftp "${resolved_args[@]}"
+    }
+
+    # Create wrapper function
+    tsftp() {
+        tsftp_main "$@"
+    }
+fi
 
 # Helpful message when sourcing
 if [[ "$_IS_ZSH" == "true" ]]; then
@@ -712,7 +847,15 @@ export -f tssh_main 2>/dev/null || true
 export -f tssh 2>/dev/null || true
 export -f ts 2>/dev/null || true
 export -f dcs_ssh_copy_id 2>/dev/null || true
-export -f tscp_main 2>/dev/null || true
-export -f tscp 2>/dev/null || true
-export -f trsync_main 2>/dev/null || true
-export -f trsync 2>/dev/null || true
+if [[ "$_HAS_SCP" == "true" ]]; then
+    export -f tscp_main 2>/dev/null || true
+    export -f tscp 2>/dev/null || true
+fi
+if [[ "$_HAS_RSYNC" == "true" ]]; then
+    export -f trsync_main 2>/dev/null || true
+    export -f trsync 2>/dev/null || true
+fi
+if [[ "$_HAS_SFTP" == "true" ]]; then
+    export -f tsftp_main 2>/dev/null || true
+    export -f tsftp 2>/dev/null || true
+fi

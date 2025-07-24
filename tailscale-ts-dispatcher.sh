@@ -8,18 +8,32 @@ ts() {
         echo "Usage: ts [command] [args...]"
         echo "Commands:"
         echo "  ssh      SSH to host (default if no command specified)"
-        echo "  scp      Copy files to/from host"
-        echo "  rsync    Sync files to/from host"
-        if command -v mussh &> /dev/null; then
+        if [[ "$_HAS_SCP" == "true" ]]; then
+            echo "  scp      Copy files to/from host"
+        fi
+        if [[ "$_HAS_SFTP" == "true" ]]; then
+            echo "  sftp     Interactive file transfer to host"
+        fi
+        if [[ "$_HAS_RSYNC" == "true" ]]; then
+            echo "  rsync    Sync files to/from host"
+        fi
+        if [[ "$_HAS_MUSSH" == "true" ]]; then
             echo "  mussh    Execute commands on multiple hosts"
         fi
         echo ""
         echo "Examples:"
         echo "  ts hostname                    # SSH to hostname (default)"
         echo "  ts ssh hostname                # Explicit SSH"
-        echo "  ts scp file.txt hostname:/path # Copy file"
-        echo "  ts rsync -av dir/ hostname:/   # Sync directory"
-        if command -v mussh &> /dev/null; then
+        if [[ "$_HAS_SCP" == "true" ]]; then
+            echo "  ts scp file.txt hostname:/path # Copy file"
+        fi
+        if [[ "$_HAS_SFTP" == "true" ]]; then
+            echo "  ts sftp hostname               # Interactive file transfer"
+        fi
+        if [[ "$_HAS_RSYNC" == "true" ]]; then
+            echo "  ts rsync -av dir/ hostname:/   # Sync directory"
+        fi
+        if [[ "$_HAS_MUSSH" == "true" ]]; then
             echo "  ts mussh -h host1 host2 -c cmd # Execute on multiple hosts"
         fi
         return 1
@@ -33,13 +47,31 @@ ts() {
             tssh_main "$@"
             ;;
         scp)
-            tscp_main "$@"
+            if [[ "$_HAS_SCP" == "true" ]]; then
+                tscp_main "$@"
+            else
+                echo "Error: scp is not installed"
+                return 1
+            fi
+            ;;
+        sftp)
+            if [[ "$_HAS_SFTP" == "true" ]]; then
+                tsftp_main "$@"
+            else
+                echo "Error: sftp is not installed"
+                return 1
+            fi
             ;;
         rsync)
-            trsync_main "$@"
+            if [[ "$_HAS_RSYNC" == "true" ]]; then
+                trsync_main "$@"
+            else
+                echo "Error: rsync is not installed"
+                return 1
+            fi
             ;;
         mussh)
-            if command -v mussh &> /dev/null; then
+            if [[ "$_HAS_MUSSH" == "true" ]]; then
                 tmussh_main "$@"
             else
                 echo "Error: mussh is not installed"

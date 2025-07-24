@@ -8,6 +8,102 @@ else
     _IS_ZSH=false
 fi
 
+# Helper function to build available subcommands list
+_dcs_build_subcommands() {
+    local subcommands=("ssh")
+    if [[ "$_HAS_SCP" == "true" ]]; then
+        subcommands+=("scp")
+    fi
+    if [[ "$_HAS_SFTP" == "true" ]]; then
+        subcommands+=("sftp")
+    fi
+    if [[ "$_HAS_RSYNC" == "true" ]]; then
+        subcommands+=("rsync")
+    fi
+    if [[ "$_HAS_MUSSH" == "true" ]]; then
+        subcommands+=("mussh")
+    fi
+    printf '%s\n' "${subcommands[@]}"
+}
+
+# Helper function to get Tailscale hosts
+_dcs_get_tailscale_hosts() {
+    local ts_hosts=()
+    local ts_json
+    
+    # Security: Validate JSON before processing
+    if ! ts_json=$(tailscale status --json 2>/dev/null); then
+        return 1
+    fi
+    
+    # Basic JSON validation
+    if ! echo "$ts_json" | jq -e '.Self and .Peer' >/dev/null 2>&1; then
+        return 1
+    fi
+    
+    if [[ -n "$ts_json" ]]; then
+        # Check if MagicDNS is enabled
+        local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
+        
+        if [[ "$magicdns_enabled" == "true" ]]; then
+            # Get self hostname
+            local self_host=$(echo "$ts_json" | jq -r '.Self.HostName' 2>/dev/null)
+            if [[ -n "$self_host" && "$self_host" != "null" ]]; then
+                ts_hosts+=("$self_host")
+            fi
+            
+            # Get peer hostnames
+            local peer_hosts
+            if [[ "$_IS_ZSH" == "true" ]]; then
+                peer_hosts=(${(f)"$(echo "$ts_json" | jq -r '.Peer | to_entries[] | .value.HostName' 2>/dev/null)"})
+            else
+                peer_hosts=($(echo "$ts_json" | jq -r '.Peer | to_entries[] | .value.HostName' 2>/dev/null))
+            fi
+            for host in "${peer_hosts[@]}"; do
+                if [[ -n "$host" && "$host" != "null" ]]; then
+                    ts_hosts+=("$host")
+                fi
+            done
+        else
+            # MagicDNS disabled - use short hostnames only
+            if [[ "$_IS_ZSH" == "true" ]]; then
+                ts_hosts=(${(f)"$(echo "$ts_json" | jq -r '(.Self.HostName), (.Peer | to_entries[] | .value.HostName)' 2>/dev/null | grep -v "null" | sort -u)"})
+            else
+                ts_hosts=($(echo "$ts_json" | jq -r '(.Self.HostName), (.Peer | to_entries[] | .value.HostName)' 2>/dev/null | grep -v "null" | sort -u))
+            fi
+        fi
+    fi
+    
+    printf '%s\n' "${ts_hosts[@]}"
+}
+
+# Helper function to register completions for available commands
+_dcs_register_completions() {
+    local completion_func="$1"
+    local commands=("tssh" "ts" "ssh-copy-id")
+    
+    if [[ "$_HAS_SCP" == "true" ]]; then
+        commands+=("tscp")
+    fi
+    if [[ "$_HAS_SFTP" == "true" ]]; then
+        commands+=("tsftp")
+    fi
+    if [[ "$_HAS_RSYNC" == "true" ]]; then
+        commands+=("trsync")
+    fi
+    if [[ "$_HAS_MUSSH" == "true" ]]; then
+        commands+=("tmussh")
+    fi
+    
+    for cmd in "${commands[@]}"; do
+        if [[ "$_IS_ZSH" == "true" ]]; then
+            compdef "$completion_func" "$cmd"
+        else
+            complete -F "$completion_func" "$cmd"
+        fi
+    done
+}
+
 _tssh_completions() {
     local cur prev opts
     
@@ -32,10 +128,12 @@ _tssh_completions() {
         if [[ "$_IS_ZSH" == "true" ]]; then
             word_index=$CURRENT
             if [[ $word_index -eq 2 ]]; then
-                # Complete subcommands
-                local subcommands=("ssh" "scp" "rsync")
-                if command -v mussh &> /dev/null; then
-                    subcommands+=("mussh")
+                # Complete subcommands using helper function
+                local subcommands
+                if [[ "$_IS_ZSH" == "true" ]]; then
+                    subcommands=(${(f)"$(_dcs_build_subcommands)"})
+                else
+                    subcommands=($(_dcs_build_subcommands))
                 fi
                 compadd -a subcommands
                 return 0
@@ -43,10 +141,12 @@ _tssh_completions() {
         else
             word_index=$COMP_CWORD
             if [[ $word_index -eq 1 ]]; then
-                # Complete subcommands
-                local subcommands=("ssh" "scp" "rsync")
-                if command -v mussh &> /dev/null; then
-                    subcommands+=("mussh")
+                # Complete subcommands using helper function
+                local subcommands
+                if [[ "$_IS_ZSH" == "true" ]]; then
+                    subcommands=(${(f)"$(_dcs_build_subcommands)"})
+                else
+                    subcommands=($(_dcs_build_subcommands))
                 fi
                 COMPREPLY=( $(compgen -W "${subcommands[*]}" -- ${cur}) )
                 return 0
@@ -118,64 +218,12 @@ _tssh_completions() {
         local users=("root" "admin" "ubuntu" "ec2-user" "fedora" "centos")
         local default_user="root"
         
-        # Security: Get all available tailscale hosts using JSON safely
-        local ts_hosts=()
-        local ts_json
-        local unique_hosts=()
-        
-        # Security: Validate JSON before processing
-        if ! ts_json=$(tailscale status --json 2>/dev/null); then
-            return 0
-        fi
-        
-        # Basic JSON validation
-        if ! echo "$ts_json" | jq -e '.Self and .Peer' >/dev/null 2>&1; then
-            return 0
-        fi
-        
-        if [[ -n "$ts_json" ]]; then
-            # Check if MagicDNS is enabled
-            local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
-            
-            if [[ "$magicdns_enabled" == "true" ]]; then
-                # MagicDNS enabled - use hostnames only (without domain suffix)
-                # The ts command will handle the DNS resolution
-                
-                # Get self hostname
-                local self_host=$(echo "$ts_json" | jq -r '.Self.HostName' 2>/dev/null)
-                if [[ -n "$self_host" && "$self_host" != "null" ]]; then
-                    ts_hosts+=("$self_host")
-                fi
-                
-                # Get peer hostnames (extract just hostname part from DNS names)
-                # Handle array assignment for both shells
-                local peer_hosts
-                if [[ "$_IS_ZSH" == "true" ]]; then
-                    peer_hosts=(${(f)"$(echo "$ts_json" | jq -r '.Peer | to_entries[] | .value.HostName' 2>/dev/null)"})
-                else
-                    peer_hosts=($(echo "$ts_json" | jq -r '.Peer | to_entries[] | .value.HostName' 2>/dev/null))
-                fi
-                for host in "${peer_hosts[@]}"; do
-                    if [[ -n "$host" && "$host" != "null" ]]; then
-                        ts_hosts+=("$host")
-                    fi
-                done
-            else
-                # MagicDNS disabled - use short hostnames only
-                # Handle array assignment for both shells
-                if [[ "$_IS_ZSH" == "true" ]]; then
-                    ts_hosts=(${(f)"$(echo "$ts_json" | jq -r '(.Self.HostName), (.Peer | to_entries[] | .value.HostName)' 2>/dev/null | grep -v "null" | sort -u)"})
-                else
-                    ts_hosts=($(echo "$ts_json" | jq -r '(.Self.HostName), (.Peer | to_entries[] | .value.HostName)' 2>/dev/null | grep -v "null" | sort -u))
-                fi
-            fi
-            
-            # Add all tailscale hosts to unique_hosts
-            for host in "${ts_hosts[@]}"; do
-                if [ -n "$host" ]; then
-                    unique_hosts+=("$host")
-                fi
-            done
+        # Get all available tailscale hosts using helper function
+        local unique_hosts
+        if [[ "$_IS_ZSH" == "true" ]]; then
+            unique_hosts=(${(f)"$(_dcs_get_tailscale_hosts)"})
+        else
+            unique_hosts=($(_dcs_get_tailscale_hosts))
         fi
         
         # Check if current input contains @ (user@host format)
@@ -259,18 +307,8 @@ if [[ "$_IS_ZSH" == "true" ]]; then
         _tssh_completions
         return 0
     }
-    compdef _ts_zsh_completion tssh
-    compdef _ts_zsh_completion ts
-    compdef _ts_zsh_completion tscp
-    compdef _ts_zsh_completion trsync
-    compdef _ts_zsh_completion tmussh
-    compdef _ts_zsh_completion ssh-copy-id
+    _dcs_register_completions "_ts_zsh_completion"
 else
     # bash completion
-    complete -F _tssh_completions tssh
-    complete -F _tssh_completions ts
-    complete -F _tssh_completions tscp
-    complete -F _tssh_completions trsync
-    complete -F _tssh_completions tmussh
-    complete -F _tssh_completions ssh-copy-id
+    _dcs_register_completions "_tssh_completions"
 fi
