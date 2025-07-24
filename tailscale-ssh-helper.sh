@@ -25,3 +25,19 @@ elif [[ -f "/usr/share/tailscale-cli-helpers/tailscale-completion.sh" ]]; then
 else
     echo "Warning: Could not find tailscale-completion.sh" >&2
 fi
+
+# Source mussh integration if mussh is available
+if command -v mussh &> /dev/null; then
+    if [[ -f "$SCRIPT_DIR/tailscale-mussh.sh" ]]; then
+        source "$SCRIPT_DIR/tailscale-mussh.sh"
+    elif [[ -f "/usr/share/tailscale-cli-helpers/tailscale-mussh.sh" ]]; then
+        source "/usr/share/tailscale-cli-helpers/tailscale-mussh.sh"
+    fi
+fi
+
+# Source ts dispatcher (always loaded for packages, optional for manual installs)
+if [[ -f "$SCRIPT_DIR/tailscale-ts-dispatcher.sh" ]]; then
+    source "$SCRIPT_DIR/tailscale-ts-dispatcher.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/tailscale-ts-dispatcher.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/tailscale-ts-dispatcher.sh"
+fi

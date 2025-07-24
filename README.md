@@ -2,9 +2,25 @@
 
 Bash/Zsh functions for easy SSH access to Tailscale nodes with hostname completion and fuzzy matching.
 
+## 🚀 Quick Start
+
+```bash
+# One-line install
+curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash
+
+# Then use commands
+tssh myhost                    # SSH to Tailscale host
+tscp file.txt myhost:/path/    # Copy files
+ts rsync -av dir/ myhost:/     # Sync directories (if ts dispatcher installed)
+```
+
 ## Features
 
-- **Quick SSH connections**: Use `ts hostname` to connect to any Tailscale node
+- **Quick SSH connections**: Use `tssh hostname` or `ts hostname` to connect to any Tailscale node
+- **SSH options passthrough**: Full support for SSH flags like `-p 2222`, `-i keyfile`, etc.
+- **SCP support**: Use `tscp` for file transfers with Tailscale hostname resolution
+- **Rsync support**: Use `trsync` for efficient file synchronization with Tailscale hosts
+- **Parallel SSH**: Use `tmussh` for executing commands on multiple hosts (requires mussh)
 - **Tab completion**: Autocomplete Tailscale hostnames and usernames
 - **Fuzzy matching**: Find hosts even with partial names
 - **Smart resolution**: Automatically uses MagicDNS when available, falls back to IPs
@@ -21,7 +37,23 @@ Bash/Zsh functions for easy SSH access to Tailscale nodes with hostname completi
 
 ## Installation
 
-### Quick Install (Universal)
+### 🚀 Quick Install (One-line)
+
+```bash
+# Install for current user (prompts for ts dispatcher)
+curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash
+
+# System-wide install (includes ts dispatcher)
+curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | sudo bash -s -- --system
+
+# Install without ts dispatcher
+curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash -s -- --no-dispatcher
+
+# Uninstall
+curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash -s -- --uninstall
+```
+
+### Manual Install (Local Development)
 
 ```bash
 # Clone the repository
@@ -29,13 +61,15 @@ git clone https://github.com/digitalcybersoft/tailscale-cli-helpers.git
 cd tailscale-cli-helpers
 
 # Run the setup script (auto-detects privileges)
-./setup.sh              # Install for current user
-sudo ./setup.sh         # Install system-wide (auto-detected)
+./setup.sh              # Install for current user (asks about ts dispatcher)
+sudo ./setup.sh         # Install system-wide (includes ts dispatcher)
 
 # Or explicitly specify installation type
-./setup.sh --user       # Force user installation
-sudo ./setup.sh --system # Force system-wide installation
+./setup.sh --user       # Force user installation (asks about ts dispatcher)
+sudo ./setup.sh --system # Force system-wide installation (includes ts dispatcher)
 ```
+
+**Note:** The one-line installer automatically downloads the latest version from GitHub. When installing manually, you'll be asked whether to install the `ts` dispatcher command.
 
 **System-wide installation locations:**
 - Scripts: `/usr/share/tailscale-cli-helpers/`
@@ -72,6 +106,20 @@ The RPM package installs to standard system locations:
 - Bash completion in `/etc/bash_completion.d/tailscale-cli-helpers`
 
 After installation, the `ts` command is immediately available in new shell sessions.
+
+### 🔄 Updating
+
+To update to the latest version, simply re-run the installation command:
+
+```bash
+# Update user installation
+curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash
+
+# Update system-wide installation
+curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | sudo bash -s -- --system
+```
+
+The installer will automatically overwrite existing files with the latest versions and display version information during installation.
 
 ### Debian-based Systems (DEB)
 
@@ -149,20 +197,127 @@ ts -v hostname
 ./tests/test-tailscale-helper.sh
 ```
 
+## Usage
+
+### SSH Connections
+
+The main command is `tssh`, with `ts` as a multi-command dispatcher:
+
+```bash
+# Direct tssh usage
+tssh hostname             # Connects as root@hostname
+tssh user@hostname        # With specific user
+
+# ts dispatcher usage
+ts hostname               # SSH to hostname (default)
+ts ssh hostname           # Explicit SSH command
+ts ssh user@hostname      # SSH with user
+
+# With SSH options
+tssh hostname -p 2222                    # Custom port
+tssh hostname -i ~/.ssh/custom_key       # Custom key
+ts ssh hostname -o StrictHostKeyChecking=no # SSH options via dispatcher
+
+# Debug mode
+tssh -v hostname          # Shows verbose debug output
+```
+
+### ts Dispatcher Command
+
+The `ts` command works as a dispatcher for all Tailscale operations:
+
+```bash
+# Show available commands
+ts                        # Shows help and available subcommands
+
+# SSH (default behavior)
+ts hostname               # SSH to hostname
+ts ssh hostname           # Explicit SSH
+
+# File operations
+ts scp file.txt host:/path    # Copy files
+ts rsync -av dir/ host:/path/ # Sync directories
+
+# Parallel operations (if mussh installed)
+ts mussh -h host1 host2 -c "uptime"  # Execute on multiple hosts
+```
+
+### File Transfers with tscp
+
+The `tscp` command provides SCP functionality with Tailscale hostname resolution:
+
+```bash
+# Copy file to remote host
+tscp localfile.txt hostname:/remote/path/
+tscp localfile.txt user@hostname:/remote/path/
+
+# Copy from remote host
+tscp hostname:/remote/file.txt ./
+tscp user@hostname:/remote/file.txt ./
+
+# With SCP options
+tscp -r local_dir/ hostname:/remote/path/  # Recursive copy
+tscp -P 2222 file.txt hostname:/path/      # Custom port
+```
+
+### File Synchronization with trsync
+
+The `trsync` command provides rsync functionality with Tailscale hostname resolution:
+
+```bash
+# Sync directory to remote host
+trsync -av local_dir/ hostname:/remote/path/
+trsync -av local_dir/ user@hostname:/remote/path/
+
+# Sync from remote host
+trsync -av hostname:/remote/path/ local_dir/
+trsync -av user@hostname:/remote/path/ local_dir/
+
+# Common rsync options work as expected
+trsync -avz --delete source/ hostname:/dest/     # Compress, delete removed files
+trsync -av --exclude='*.log' dir/ hostname:/dir/ # Exclude patterns
+trsync -av --dry-run source/ hostname:/dest/     # Preview changes
+
+# Debug mode shows hostname resolution
+trsync -v source/ hostname:/dest/                # Shows resolved hostname/IP
+```
+
+### Parallel SSH with tmussh
+
+When `mussh` is installed, `tmussh` provides parallel SSH execution across multiple Tailscale nodes:
+
+```bash
+# Execute command on multiple hosts
+tmussh -h host1 host2 host3 -c "uptime"
+
+# Using wildcards (resolved to Tailscale hosts)
+tmussh -h "web-*" -c "systemctl status nginx"
+
+# With parallel execution limit
+tmussh -m 5 -h "prod-*" -c "df -h"
+
+# Different users per host
+tmussh -h admin@web1 root@web2 -c "whoami"
+
+# From host file
+tmussh -H hostlist.txt -c "hostname"
+```
+
 ### Tab Completion
 
-The `ts` command supports intelligent tab completion:
+All commands support intelligent tab completion:
 
 ```bash
 # Complete hostnames
-ts host<TAB>              # Shows all matching Tailscale hosts
+tssh host<TAB>            # Shows all matching Tailscale hosts
+ts host<TAB>              # Same with alias
 
 # Complete usernames
-ts ro<TAB>                # Completes to "root@"
-ts admin@<TAB>            # Shows all hosts for admin user
+tssh ro<TAB>              # Completes to "root@"
+tssh admin@<TAB>          # Shows all hosts for admin user
 
 # Partial matching
-ts @prod<TAB>             # Shows all hosts containing "prod"
+tssh @prod<TAB>           # Shows all hosts containing "prod"
 ```
 
 ### SSH Key Distribution

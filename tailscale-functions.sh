@@ -139,7 +139,7 @@ _dcs_is_magicdns_working() {
 }
 
 # Main Tailscale SSH function
-dcs_ts() {
+tssh_main() {
     local debug=false
     local input=""
     local hostname=""
@@ -161,7 +161,7 @@ dcs_ts() {
     input=$1
     
     if [ -z "$input" ]; then
-        echo "Usage: ts [-v] <user@hostname>"
+        echo "Usage: tssh [-v] <user@hostname>"
         echo "  -v  Enable verbose debug output"
         return 1
     fi
@@ -342,13 +342,19 @@ dcs_ts() {
     fi
 }
 
-# Create wrapper function
-ts() {
-    dcs_ts "$@"
+# Create wrapper functions
+tssh() {
+    tssh_main "$@"
 }
 
-# Create ssh-copy-id alias
+# ts alias for backward compatibility
+ts() {
+    tssh_main "$@"
+}
+
+# Create ssh-copy-id aliases
 alias ssh-copy-id='dcs_ssh_copy_id'
+alias tssh-copy-id='dcs_ssh_copy_id'
 
 # Enhanced ssh-copy-id with Tailscale support
 dcs_ssh_copy_id() {
@@ -496,6 +502,114 @@ dcs_ssh_copy_id() {
     fi
 }
 
+# Tailscale SCP function
+tscp_main() {
+    # Simple wrapper that resolves Tailscale hostnames for scp
+    local resolved_args=()
+    
+    for arg in "$@"; do
+        if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]]; then
+            # This looks like a remote host:path spec
+            local host_part="${arg%%:*}"
+            local path_part="${arg#*:}"
+            local user="root"
+            local hostname=""
+            
+            # Parse user@host format
+            if [[ "$host_part" == *"@"* ]]; then
+                user="${host_part%%@*}"
+                hostname="${host_part#*@}"
+            else
+                hostname="$host_part"
+            fi
+            
+            # Try to resolve with Tailscale
+            local ts_json=$(tailscale status --json 2>/dev/null)
+            if [[ -n "$ts_json" ]]; then
+                local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
+                local host_data=$(_dcs_find_host_in_json "$ts_json" "$hostname" "$magicdns_enabled")
+                
+                if [[ -n "$host_data" ]]; then
+                    local found_ip=$(echo "$host_data" | cut -d',' -f1)
+                    local found_hostname=$(echo "$host_data" | cut -d',' -f2)
+                    
+                    if _dcs_is_magicdns_working; then
+                        resolved_args+=("${user}@${found_hostname}:${path_part}")
+                    else
+                        resolved_args+=("${user}@${found_ip}:${path_part}")
+                    fi
+                    continue
+                fi
+            fi
+        fi
+        
+        # Use original argument if not resolved
+        resolved_args+=("$arg")
+    done
+    
+    # Execute scp with resolved arguments
+    scp "${resolved_args[@]}"
+}
+
+# Create wrapper function
+tscp() {
+    tscp_main "$@"
+}
+
+# Tailscale rsync function
+trsync_main() {
+    # Simple wrapper that resolves Tailscale hostnames for rsync
+    local resolved_args=()
+    
+    for arg in "$@"; do
+        if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]]; then
+            # This looks like a remote host:path spec
+            local host_part="${arg%%:*}"
+            local path_part="${arg#*:}"
+            local user="root"
+            local hostname=""
+            
+            # Parse user@host format
+            if [[ "$host_part" == *"@"* ]]; then
+                user="${host_part%%@*}"
+                hostname="${host_part#*@}"
+            else
+                hostname="$host_part"
+            fi
+            
+            # Try to resolve with Tailscale
+            local ts_json=$(tailscale status --json 2>/dev/null)
+            if [[ -n "$ts_json" ]]; then
+                local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
+                local host_data=$(_dcs_find_host_in_json "$ts_json" "$hostname" "$magicdns_enabled")
+                
+                if [[ -n "$host_data" ]]; then
+                    local found_ip=$(echo "$host_data" | cut -d',' -f1)
+                    local found_hostname=$(echo "$host_data" | cut -d',' -f2)
+                    
+                    if _dcs_is_magicdns_working; then
+                        resolved_args+=("${user}@${found_hostname}:${path_part}")
+                    else
+                        resolved_args+=("${user}@${found_ip}:${path_part}")
+                    fi
+                    continue
+                fi
+            fi
+        fi
+        
+        # Use original argument if not resolved
+        resolved_args+=("$arg")
+    done
+    
+    # Execute rsync with resolved arguments
+    rsync "${resolved_args[@]}"
+}
+
+# Create wrapper function
+trsync() {
+    trsync_main "$@"
+}
+
 # Helpful message when sourcing
 if [[ "$_IS_ZSH" == "true" ]]; then
     # For zsh users - ensure compatibility mode is set
@@ -508,6 +622,11 @@ if [[ "$_IS_ZSH" == "true" ]]; then
 fi
 
 # Export functions for subshells
-export -f dcs_ts 2>/dev/null || true
+export -f tssh_main 2>/dev/null || true
+export -f tssh 2>/dev/null || true
 export -f ts 2>/dev/null || true
 export -f dcs_ssh_copy_id 2>/dev/null || true
+export -f tscp_main 2>/dev/null || true
+export -f tscp 2>/dev/null || true
+export -f trsync_main 2>/dev/null || true
+export -f trsync 2>/dev/null || true
