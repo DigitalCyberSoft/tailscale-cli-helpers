@@ -13,8 +13,8 @@ fi
 source "$(dirname "${BASH_SOURCE[0]}")/tailscale-functions.sh" 2>/dev/null || \
 source "$(dirname "$0")/tailscale-functions.sh" 2>/dev/null
 
-# Tailscale mussh wrapper function
-tmussh_main() {
+# Tailscale mussh wrapper function (internal)
+_tmussh_main() {
     # Check if mussh is installed
     if ! command -v mussh &> /dev/null; then
         echo "Error: mussh is not installed. Please install mussh first."
@@ -124,9 +124,9 @@ tmussh_main() {
                     local pattern="${hostname//\*/.*}"  # Convert shell wildcard to regex
                     local matching_hosts=()
                     
-                    # Get matching hosts from JSON
+                    # Get matching hosts from JSON using multi-host pattern matching
                     local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
-                    local matches=$(_dcs_find_hosts_matching "$ts_json" "$pattern" "$magicdns_enabled")
+                    local matches=$(_dcs_find_multiple_hosts_matching "$ts_json" "$hostname" "$magicdns_enabled")
                     
                     while IFS= read -r match; do
                         if [[ -n "$match" ]]; then
@@ -213,9 +213,8 @@ tmussh_main() {
 
 # Create wrapper function
 tmussh() {
-    tmussh_main "$@"
+    _tmussh_main "$@"
 }
 
-# Export functions
-export -f tmussh_main 2>/dev/null || true
+# Export functions - only export user-facing commands
 export -f tmussh 2>/dev/null || true

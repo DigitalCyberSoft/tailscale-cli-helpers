@@ -121,6 +121,42 @@ _dcs_find_hosts_matching() {
     }
 }
 
+# Multi-host pattern matching function for commands like mussh that need wildcard support
+# Returns newline-separated list of "ip,hostname,os,status,key" entries
+_dcs_find_multiple_hosts_matching() {
+    local json="$1"
+    local search_pattern="$2"
+    local magicdns_enabled="$3"
+    
+    # Basic validation without overly restrictive sanitization
+    if [[ -z "$json" || -z "$search_pattern" ]]; then
+        return 1
+    fi
+    
+    # Convert shell wildcard pattern to regex pattern
+    local regex_pattern="${search_pattern//\*/.*}"
+    
+    # Use jq to find matching hosts - allow more permissive pattern matching for multi-host commands
+    echo "$json" | jq -r --arg pattern "$regex_pattern" --arg magicdns "$magicdns_enabled" '
+        # Extract Self host if it matches
+        (if (.Self.HostName | test($pattern)) then 
+            "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online,self"
+        else empty end),
+        # Extract matching Peer hosts  
+        (.Peer | to_entries[] | .value | 
+            if (.HostName | test($pattern)) then
+                "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end),\(.PublicKey)"
+            else empty end
+        )
+    ' 2>/dev/null || {
+        # Fallback: try basic pattern matching without regex
+        echo "$json" | jq -r --arg pattern "$search_pattern" '
+            # Simple fallback - check if hostname contains the pattern (without wildcards)
+            (.Self.HostName), (.Peer | to_entries[] | .value.HostName) | 
+            select(contains($pattern))' 2>/dev/null | head -5
+    }
+}
+
 # Levenshtein distance function for fuzzy matching
 _dcs_levenshtein() {
     local str1="$1"
@@ -318,7 +354,7 @@ _dcs_resolve_tailscale_host() {
 }
 
 # Main Tailscale SSH function
-tssh_main() {
+_tssh_main() {
     local debug=false
     local input=""
     local hostname=""
@@ -543,49 +579,35 @@ tssh_main() {
 
 # Create wrapper functions
 tssh() {
-    tssh_main "$@"
+    _tssh_main "$@"
 }
 
 # ts alias for backward compatibility
 ts() {
-    tssh_main "$@"
+    _tssh_main "$@"
 }
 
-# Create ssh-copy-id aliases
-alias ssh-copy-id='dcs_ssh_copy_id'
-alias tssh-copy-id='dcs_ssh_copy_id'
+# Note: ssh-copy-id alias removed to avoid overriding system command
+# Use 'tssh_copy_id' or 'ts ssh_copy_id' instead for Tailscale support
 
-# Enhanced ssh-copy-id with Tailscale support
-dcs_ssh_copy_id() {
+# Tailscale ssh-copy-id function with hostname resolution
+_tssh_copy_id_main() {
     local args=()
     local i=1
     local use_proxy_jump=false
     local jumphost=""
-    local verbose=false
     local target_host=""
-    local user="root"
     
-    # ANSI color codes
-    local GREEN='\033[0;32m'
-    local BLUE='\033[0;34m'
-    local RESET='\033[0m'
-
-    # Check for verbose flag
-    for arg in "$@"; do
-        if [[ "$arg" == "-v" ]]; then
-            verbose=true
-            break
-        fi
-    done
-
+    # Parse arguments
     while [ $i -le $# ]; do
         local arg="${!i}"
-
+        
         if [[ "$arg" == "-J" ]]; then
             use_proxy_jump=true
             ((i++))
             jumphost="${!i}"
-        elif [[ "$arg" != "-v" && ! "$arg" =~ ^- && -z "$target_host" ]]; then
+        elif [[ "$arg" != "-"* && -z "$target_host" ]]; then
+            # This should be the target host
             target_host="$arg"
             args+=("$arg")
         else
@@ -593,121 +615,34 @@ dcs_ssh_copy_id() {
         fi
         ((i++))
     done
-
-    # Security: Function to safely check if IP is in Tailscale range
-    is_tailscale_ip() {
-        local ip="$1"
-        
-        # Validate IP format with safer pattern
-        if ! [[ "$ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-            return 1
-        fi
-        
-        # Extract octets safely
-        local IFS='.'
-        local octets=($ip)
-        local first_octet=${octets[0]}
-        local second_octet=${octets[1]}
-        
-        # Validate octet ranges
-        if [[ "$first_octet" -lt 0 || "$first_octet" -gt 255 ]] || 
-           [[ "$second_octet" -lt 0 || "$second_octet" -gt 255 ]]; then
-            return 1
-        fi
-        
-        # Check Tailscale range (100.64.0.0/10)
-        if [[ "$first_octet" -eq 100 ]] && [[ "$second_octet" -ge 64 ]] && [[ "$second_octet" -le 127 ]]; then
-            return 0
-        fi
-        
-        return 1
-    }
-
-    # Function to resolve host using JSON
-    resolve_host() {
-        local input_host="$1"
-        local host_user="root"
-        local hostname=""
-        local search_pattern=""
-        
-        # Parse user@host format
-        if [[ "$input_host" == *"@"* ]]; then
-            host_user=${input_host%%@*}
-            hostname=${input_host#*@}
-            search_pattern="$hostname"
-        else
-            hostname="$input_host"
-            search_pattern="$hostname"
-        fi
-        
-        # Security: Safe check of known_hosts with validated input
-        if [[ -r ~/.ssh/known_hosts ]] && _dcs_validate_hostname "$search_pattern"; then
-            if grep -Fq "$search_pattern " ~/.ssh/known_hosts 2>/dev/null || grep -Fq "$search_pattern," ~/.ssh/known_hosts 2>/dev/null; then
-            if is_tailscale_ip "$search_pattern"; then
-                # Security: Verify if Tailscale IP is still valid
-                local ts_json
-                if ts_json=$(tailscale status --json 2>/dev/null) && _dcs_validate_tailscale_json "$ts_json"; then
-                    if echo "$ts_json" | jq -e --arg ip "$search_pattern" '.Self.TailscaleIPs[] == $ip or (.Peer | to_entries[] | .value.TailscaleIPs[] == $ip)' >/dev/null 2>&1; then
-                        echo "$input_host"
-                        return 0
-                    fi
-                fi
-            else
-                echo "$input_host"
-                return 0
-            fi
-            fi
-        elif _dcs_validate_hostname "$search_pattern" && (host "$search_pattern" >/dev/null 2>&1 || getent hosts "$search_pattern" >/dev/null 2>&1); then
-            echo "$input_host"
-            return 0
-        else
-            # Security: Try Tailscale safely
-            local ts_json
-            if ts_json=$(tailscale status --json 2>/dev/null) && _dcs_validate_tailscale_json "$ts_json"; then
-                local magicdns_enabled=$(echo "$ts_json" | jq -r '.CurrentTailnet.MagicDNSEnabled' 2>/dev/null)
-                local host_data=$(_dcs_find_host_in_json "$ts_json" "$search_pattern" "$magicdns_enabled")
-                if [[ -n "$host_data" ]]; then
-                    local found_ip=$(echo "$host_data" | cut -d',' -f1)
-                    local found_hostname=$(echo "$host_data" | cut -d',' -f2)
-                    
-                    if _dcs_is_magicdns_working; then
-                        # MagicDNS is properly configured - return DNS name
-                        echo "$host_user@$found_hostname"
-                    else
-                        # MagicDNS not working - return IP
-                        echo "$host_user@$found_ip"
-                    fi
-                    return 0
-                fi
-            fi
-            
-            echo "$input_host"
-            return 1
-        fi
-    }
-
+    
     # Resolve jumphost if using proxy jump
     if [[ "$use_proxy_jump" == "true" && -n "$jumphost" ]]; then
-        local resolved_jumphost=$(resolve_host "$jumphost")
-        jumphost="$resolved_jumphost"
+        local resolved_jumphost=$(_dcs_resolve_tailscale_host "$jumphost")
+        if [[ $? -eq 0 ]]; then
+            jumphost="$resolved_jumphost"
+        fi
     fi
-
+    
     # Resolve target host if not using proxy jump
     if [[ -n "$target_host" && "$use_proxy_jump" == "false" ]]; then
-        local resolved_target=$(resolve_host "$target_host")
+        local resolved_target=$(_dcs_resolve_tailscale_host "$target_host")
         
-        # Replace the original target in args with resolved version
-        local new_args=()
-        for arg in "${args[@]}"; do
-            if [[ "$arg" == "$target_host" ]]; then
-                new_args+=("$resolved_target")
-            else
-                new_args+=("$arg")
-            fi
-        done
-        args=("${new_args[@]}")
+        if [[ $? -eq 0 ]]; then
+            # Replace the original target in args with resolved version
+            local new_args=()
+            for arg in "${args[@]}"; do
+                if [[ "$arg" == "$target_host" ]]; then
+                    new_args+=("$resolved_target")
+                else
+                    new_args+=("$arg")
+                fi
+            done
+            args=("${new_args[@]}")
+        fi
     fi
-
+    
+    # Execute ssh-copy-id with resolved hosts
     if [[ "$use_proxy_jump" == "true" && -n "$jumphost" ]]; then
         command ssh-copy-id -o "ProxyJump=$jumphost" "${args[@]}"
     else
@@ -715,9 +650,14 @@ dcs_ssh_copy_id() {
     fi
 }
 
+# Create wrapper function
+tssh_copy_id() {
+    _tssh_copy_id_main "$@"
+}
+
 # Tailscale SCP function (only available if scp is installed)
 if [[ "$_HAS_SCP" == "true" ]]; then
-    tscp_main() {
+    _tscp_main() {
         # Simple wrapper that resolves Tailscale hostnames for scp
         local resolved_args=()
         
@@ -750,13 +690,13 @@ if [[ "$_HAS_SCP" == "true" ]]; then
 
     # Create wrapper function
     tscp() {
-        tscp_main "$@"
+        _tscp_main "$@"
     }
 fi
 
 # Tailscale rsync function (only available if rsync is installed)
 if [[ "$_HAS_RSYNC" == "true" ]]; then
-    trsync_main() {
+    _trsync_main() {
         # Simple wrapper that resolves Tailscale hostnames for rsync
         local resolved_args=()
         
@@ -789,13 +729,13 @@ if [[ "$_HAS_RSYNC" == "true" ]]; then
 
     # Create wrapper function
     trsync() {
-        trsync_main "$@"
+        _trsync_main "$@"
     }
 fi
 
 # Tailscale SFTP function (only available if sftp is installed)
 if [[ "$_HAS_SFTP" == "true" ]]; then
-    tsftp_main() {
+    _tsftp_main() {
         # Simple wrapper that resolves Tailscale hostnames for sftp
         local resolved_args=()
         local target_host=""
@@ -827,7 +767,7 @@ if [[ "$_HAS_SFTP" == "true" ]]; then
 
     # Create wrapper function
     tsftp() {
-        tsftp_main "$@"
+        _tsftp_main "$@"
     }
 fi
 
@@ -842,20 +782,16 @@ if [[ "$_IS_ZSH" == "true" ]]; then
     fi
 fi
 
-# Export functions for subshells
-export -f tssh_main 2>/dev/null || true
+# Export functions for subshells - only export user-facing commands
 export -f tssh 2>/dev/null || true
 export -f ts 2>/dev/null || true
-export -f dcs_ssh_copy_id 2>/dev/null || true
+export -f tssh_copy_id 2>/dev/null || true
 if [[ "$_HAS_SCP" == "true" ]]; then
-    export -f tscp_main 2>/dev/null || true
     export -f tscp 2>/dev/null || true
 fi
 if [[ "$_HAS_RSYNC" == "true" ]]; then
-    export -f trsync_main 2>/dev/null || true
     export -f trsync 2>/dev/null || true
 fi
 if [[ "$_HAS_SFTP" == "true" ]]; then
-    export -f tsftp_main 2>/dev/null || true
     export -f tsftp 2>/dev/null || true
 fi

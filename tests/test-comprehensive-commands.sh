@@ -53,7 +53,7 @@ run_test "tssh completion registered" "complete -p tssh" 0
 run_test "tscp completion registered" "complete -p tscp" 0 
 run_test "trsync completion registered" "complete -p trsync" 0
 run_test "tmussh completion registered" "complete -p tmussh" 0
-run_test "ssh-copy-id completion registered" "complete -p ssh-copy-id" 0
+run_test "tssh_copy_id completion registered" "complete -p tssh_copy_id" 0
 
 echo
 
@@ -182,7 +182,7 @@ if command -v mussh &> /dev/null; then
     }
     
     run_test "tmussh command available" "test_tmussh_available" 0
-    run_test "ts dispatcher calls tmussh_main" "test_ts_mussh" 0
+    run_test "ts dispatcher calls _tmussh_main" "test_ts_mussh" 0
 else
     echo -e "${YELLOW}ℹ mussh not installed, skipping mussh integration tests${RESET}"
 fi

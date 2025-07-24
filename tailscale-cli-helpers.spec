@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.2.0
+Version:        0.2.1
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.2.0.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.2.1.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -20,7 +20,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.2.0
+%setup -q -n %{name}-0.2.1
 
 %install
 rm -rf $RPM_BUILD_ROOT

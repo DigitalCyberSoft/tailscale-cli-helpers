@@ -69,10 +69,10 @@ echo
 
 # Test 1: Check if functions are defined
 echo "Test 1: Checking if functions are defined..."
-if type tssh_main &>/dev/null; then
-    echo "✓ tssh_main function is defined"
+if type _tssh_main &>/dev/null; then
+    echo "✓ _tssh_main function is defined"
 else
-    echo "✗ tssh_main function is NOT defined"
+    echo "✗ _tssh_main function is NOT defined"
 fi
 
 if type ts &>/dev/null; then
@@ -81,10 +81,10 @@ else
     echo "✗ ts function is NOT defined"
 fi
 
-if type dcs_ssh_copy_id &>/dev/null; then
-    echo "✓ dcs_ssh_copy_id function is defined"
+if type tssh_copy_id &>/dev/null; then
+    echo "✓ tssh_copy_id function is defined"
 else
-    echo "✗ dcs_ssh_copy_id function is NOT defined"
+    echo "✗ tssh_copy_id function is NOT defined"
 fi
 echo
 

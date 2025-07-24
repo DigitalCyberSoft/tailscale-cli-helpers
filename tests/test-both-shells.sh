@@ -60,9 +60,9 @@ test_basic_functions() {
     echo -e "${CYAN}  Basic Function Tests:${RESET}"
     
     # Test function existence
-    run_test "tssh_main function exists" "type tssh_main" 0
+    run_test "_tssh_main function exists" "type _tssh_main" 0
     run_test "ts function exists" "type ts" 0
-    run_test "dcs_ssh_copy_id function exists" "type dcs_ssh_copy_id" 0
+    run_test "tssh_copy_id function exists" "type tssh_copy_id" 0
     
     # Test ts command usage output
     run_test "ts command shows usage" "ts 2>&1 | grep -q 'Usage:'" 0
@@ -105,6 +105,7 @@ test_helper_functions() {
     # Test internal helper functions exist
     run_test "_dcs_find_host_in_json exists" "type _dcs_find_host_in_json" 0
     run_test "_dcs_find_hosts_matching exists" "type _dcs_find_hosts_matching" 0
+    run_test "_dcs_find_multiple_hosts_matching exists" "type _dcs_find_multiple_hosts_matching" 0
     run_test "_dcs_levenshtein exists" "type _dcs_levenshtein" 0
     run_test "_dcs_is_magicdns_enabled exists" "type _dcs_is_magicdns_enabled" 0
     
