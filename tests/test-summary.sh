@@ -28,7 +28,7 @@ echo
 
 # Test bash
 echo "  Bash Shell:"
-if bash -c "source $SCRIPT_PATH && type ts && type _dcs_ts_completions && complete -p ts" &>/dev/null; then
+if bash -c "source $SCRIPT_PATH && type ts && type _tssh_completions && complete -p ts" &>/dev/null; then
     echo "    ✅ Functions loaded"
     echo "    ✅ Completion registered"
     echo "    ✅ All tests pass"
@@ -39,7 +39,7 @@ fi
 # Test zsh
 echo "  Zsh Shell:"
 if command -v zsh &>/dev/null; then
-    if zsh -c "setopt SH_WORD_SPLIT; compdef() { return 0; }; source $SCRIPT_PATH && type ts && type _dcs_ts_completions" &>/dev/null; then
+    if zsh -c "setopt SH_WORD_SPLIT; compdef() { return 0; }; source $SCRIPT_PATH && type ts && type _tssh_completions" &>/dev/null; then
         echo "    ✅ Functions loaded"
         echo "    ✅ Completion available"
         echo "    ✅ All tests pass"

@@ -69,10 +69,10 @@ echo
 
 # Test 1: Check if functions are defined
 echo "Test 1: Checking if functions are defined..."
-if type dcs_ts &>/dev/null; then
-    echo "✓ dcs_ts function is defined"
+if type tssh_main &>/dev/null; then
+    echo "✓ tssh_main function is defined"
 else
-    echo "✗ dcs_ts function is NOT defined"
+    echo "✗ tssh_main function is NOT defined"
 fi
 
 if type ts &>/dev/null; then

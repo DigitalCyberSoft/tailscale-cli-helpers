@@ -26,8 +26,8 @@ fi
 echo
 
 # Test completion function exists
-if type _dcs_ts_completions &>/dev/null; then
-    echo "✓ Completion function _dcs_ts_completions exists"
+if type _tssh_completions &>/dev/null; then
+    echo "✓ Completion function _tssh_completions exists"
 else
     echo "✗ Completion function is missing"
     exit 1
@@ -38,7 +38,7 @@ echo
 echo "Testing completion function..."
 export COMP_WORDS=("ts" "")
 export COMP_CWORD=1
-if _dcs_ts_completions 2>/dev/null; then
+if _tssh_completions 2>/dev/null; then
     echo "✓ Completion function executes without errors"
 else
     echo "✗ Completion function has errors"
@@ -49,7 +49,7 @@ echo
 echo "Testing flag completion..."
 export COMP_WORDS=("ts" "-")
 export COMP_CWORD=1
-_dcs_ts_completions 2>/dev/null
+_tssh_completions 2>/dev/null
 if [[ ${#COMPREPLY[@]} -gt 0 ]]; then
     echo "✓ Flag completion returned results: ${COMPREPLY[*]}"
 else

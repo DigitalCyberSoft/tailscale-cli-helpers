@@ -60,7 +60,7 @@ test_basic_functions() {
     echo -e "${CYAN}  Basic Function Tests:${RESET}"
     
     # Test function existence
-    run_test "dcs_ts function exists" "type dcs_ts" 0
+    run_test "tssh_main function exists" "type tssh_main" 0
     run_test "ts function exists" "type ts" 0
     run_test "dcs_ssh_copy_id function exists" "type dcs_ssh_copy_id" 0
     
@@ -81,18 +81,18 @@ test_completion_system() {
     if [[ "$shell_name" == "bash" ]]; then
         # Test bash completion
         run_test "bash completion registered" "complete -p ts" 0
-        run_test "_dcs_ts_completions function exists" "type _dcs_ts_completions" 0
+        run_test "_tssh_completions function exists" "type _tssh_completions" 0
         
         # Test completion function doesn't crash
-        run_test "completion function callable" "_dcs_ts_completions" 0
+        run_test "completion function callable" "_tssh_completions" 0
         
     elif [[ "$shell_name" == "zsh" ]]; then
         # Test zsh completion (more complex due to zsh completion system)
-        run_test "_dcs_ts_completions function exists" "type _dcs_ts_completions" 0
+        run_test "_tssh_completions function exists" "type _tssh_completions" 0
         run_test "_ts_zsh_completion function exists" "type _ts_zsh_completion" 0
         
         # Test completion function doesn't crash
-        run_test "completion function callable" "_dcs_ts_completions" 0
+        run_test "completion function callable" "_tssh_completions" 0
     fi
 }
 

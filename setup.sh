@@ -92,6 +92,24 @@ install_for_user() {
     cp tailscale-ssh-helper.sh "$install_dir/"
     cp tailscale-functions.sh "$install_dir/"
     cp tailscale-completion.sh "$install_dir/"
+    cp tailscale-mussh.sh "$install_dir/" 2>/dev/null || true
+    
+    # Ask about ts dispatcher for user installations
+    echo ""
+    echo "The 'ts' command can work as a dispatcher for all tailscale operations:"
+    echo "  ts hostname        # SSH (default)"
+    echo "  ts scp file host:/ # File copy"
+    echo "  ts rsync -av dir/ host:/ # Directory sync"
+    echo ""
+    read -p "Install ts dispatcher? [Y/n]: " install_dispatcher
+    install_dispatcher=${install_dispatcher:-Y}
+    
+    if [[ "$install_dispatcher" =~ ^[Yy]$ ]]; then
+        cp tailscale-ts-dispatcher.sh "$install_dir/" 2>/dev/null || true
+        echo "✓ ts dispatcher will be installed"
+    else
+        echo "✗ ts dispatcher skipped (you can still use tssh, tscp, trsync, tmussh directly)"
+    fi
     
     # Add to shell rc file
     local source_line="# Tailscale CLI helpers
@@ -130,9 +148,13 @@ install_system_wide() {
     cp tailscale-ssh-helper.sh "$install_dir/"
     cp tailscale-functions.sh "$install_dir/"
     cp tailscale-completion.sh "$install_dir/"
+    cp tailscale-mussh.sh "$install_dir/" 2>/dev/null || true
+    cp tailscale-ts-dispatcher.sh "$install_dir/" 2>/dev/null || true
     chmod 644 "$install_dir/tailscale-ssh-helper.sh"
     chmod 644 "$install_dir/tailscale-functions.sh"
     chmod 644 "$install_dir/tailscale-completion.sh"
+    chmod 644 "$install_dir/tailscale-mussh.sh" 2>/dev/null || true
+    chmod 644 "$install_dir/tailscale-ts-dispatcher.sh" 2>/dev/null || true
     
     # Create profile.d script for all shells
     cat > /etc/profile.d/tailscale-cli-helpers.sh << 'EOF'

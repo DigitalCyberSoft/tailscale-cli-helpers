@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.1.3
+Version:        0.2.0
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.1.3.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.2.0.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -14,11 +14,13 @@ BuildArch:      noarch
 
 %description
 Provides convenient bash/zsh functions for SSH access to Tailscale nodes
-with hostname completion and fuzzy matching. Includes the 'ts' command
-for quick connections and smart host resolution.
+with hostname completion and fuzzy matching. Includes the 'tssh' command
+(with 'ts' alias) for quick connections, 'tscp' for file transfers,
+'trsync' for rsync operations, and 'tmussh' for parallel SSH execution
+across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.1.3
+%setup -q -n %{name}-0.2.0
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -34,6 +36,8 @@ mkdir -p $RPM_BUILD_ROOT%{_docdir}/%{name}
 install -m 644 tailscale-ssh-helper.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
 install -m 644 tailscale-functions.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
 install -m 644 tailscale-completion.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
+install -m 644 tailscale-mussh.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
+install -m 644 tailscale-ts-dispatcher.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
 install -m 755 setup.sh $RPM_BUILD_ROOT%{_bindir}/%{name}-setup
 
 # Create profile.d script for all shells
@@ -61,6 +65,8 @@ install -m 644 README.md $RPM_BUILD_ROOT%{_docdir}/%{name}/
 %{_datadir}/%{name}/tailscale-ssh-helper.sh
 %{_datadir}/%{name}/tailscale-functions.sh
 %{_datadir}/%{name}/tailscale-completion.sh
+%{_datadir}/%{name}/tailscale-mussh.sh
+%{_datadir}/%{name}/tailscale-ts-dispatcher.sh
 %{_sysconfdir}/profile.d/%{name}.sh
 %{_sysconfdir}/bash_completion.d/%{name}
 %{_bindir}/%{name}-setup

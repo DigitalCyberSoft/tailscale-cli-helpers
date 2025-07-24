@@ -8,7 +8,7 @@ else
     _IS_ZSH=false
 fi
 
-_dcs_ts_completions() {
+_tssh_completions() {
     local cur prev opts
     
     # Handle shell-specific completion variables
@@ -16,11 +16,42 @@ _dcs_ts_completions() {
         # zsh completion
         cur="${words[CURRENT]}"
         prev="${words[CURRENT-1]}"
+        local command_name="${words[1]}"
     else
         # bash completion
         COMPREPLY=()
         cur="${COMP_WORDS[COMP_CWORD]}"
         prev="${COMP_WORDS[COMP_CWORD-1]}"
+        local command_name="${COMP_WORDS[0]}"
+    fi
+    
+    # Handle ts dispatcher command
+    if [[ "$command_name" == "ts" ]]; then
+        # Check if we're completing the first argument (subcommand)
+        local word_index
+        if [[ "$_IS_ZSH" == "true" ]]; then
+            word_index=$CURRENT
+            if [[ $word_index -eq 2 ]]; then
+                # Complete subcommands
+                local subcommands=("ssh" "scp" "rsync")
+                if command -v mussh &> /dev/null; then
+                    subcommands+=("mussh")
+                fi
+                compadd -a subcommands
+                return 0
+            fi
+        else
+            word_index=$COMP_CWORD
+            if [[ $word_index -eq 1 ]]; then
+                # Complete subcommands
+                local subcommands=("ssh" "scp" "rsync")
+                if command -v mussh &> /dev/null; then
+                    subcommands+=("mussh")
+                fi
+                COMPREPLY=( $(compgen -W "${subcommands[*]}" -- ${cur}) )
+                return 0
+            fi
+        fi
     fi
     
     # ANSI color codes for visual indicators
@@ -215,13 +246,21 @@ if [[ "$_IS_ZSH" == "true" ]]; then
     # zsh completion wrapper
     _ts_zsh_completion() {
         local -a completions
-        _dcs_ts_completions
+        _tssh_completions
         return 0
     }
+    compdef _ts_zsh_completion tssh
     compdef _ts_zsh_completion ts
+    compdef _ts_zsh_completion tscp
+    compdef _ts_zsh_completion trsync
+    compdef _ts_zsh_completion tmussh
     compdef _ts_zsh_completion ssh-copy-id
 else
     # bash completion
-    complete -F _dcs_ts_completions ts
-    complete -F _dcs_ts_completions ssh-copy-id
+    complete -F _tssh_completions tssh
+    complete -F _tssh_completions ts
+    complete -F _tssh_completions tscp
+    complete -F _tssh_completions trsync
+    complete -F _tssh_completions tmussh
+    complete -F _tssh_completions ssh-copy-id
 fi
