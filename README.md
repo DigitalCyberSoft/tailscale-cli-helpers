@@ -1,56 +1,87 @@
 # Tailscale CLI Helpers
 
-Bash/Zsh functions for easy SSH access to Tailscale nodes with hostname completion and fuzzy matching.
+Comprehensive Bash/Zsh functions for secure SSH, file transfer, and parallel operations on Tailscale nodes with advanced hostname completion and fuzzy matching.
 
 ## 🚀 Quick Start
 
 ```bash
 # One-line install
-curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.1.tar.gz
+tar -xzf v0.2.1.tar.gz && cd tailscale-cli-helpers-0.2.1
+./setup.sh
 
 # Then use commands
-tssh myhost                    # SSH to Tailscale host
-tscp file.txt myhost:/path/    # Copy files
-ts rsync -av dir/ myhost:/     # Sync directories (if ts dispatcher installed)
+tssh myhost                     # SSH to Tailscale host
+tscp file.txt myhost:/path/     # Copy files (SCP)
+tsftp myhost                    # Secure file transfer (SFTP)
+trsync -av dir/ myhost:/        # Sync directories (rsync)
+tmussh -h "web-*" -c "uptime"   # Parallel SSH execution
+tssh_copy_id myhost             # Copy SSH keys
+ts ssh_copy_id myhost           # Via dispatcher
 ```
 
-## Features
+## ✨ Features
 
+### 🔐 Secure SSH & File Operations
 - **Quick SSH connections**: Use `tssh hostname` or `ts hostname` to connect to any Tailscale node
 - **SSH options passthrough**: Full support for SSH flags like `-p 2222`, `-i keyfile`, etc.
-- **SCP support**: Use `tscp` for file transfers with Tailscale hostname resolution
-- **Rsync support**: Use `trsync` for efficient file synchronization with Tailscale hosts
-- **Parallel SSH**: Use `tmussh` for executing commands on multiple hosts (requires mussh)
-- **Tab completion**: Autocomplete Tailscale hostnames and usernames
-- **Fuzzy matching**: Find hosts even with partial names
+- **SSH key management**: `tssh_copy_id` and `ts ssh_copy_id` for secure key distribution
+- **Security hardened**: Input validation, command injection prevention, and secure argument handling
+
+### 📁 Multiple File Transfer Methods
+- **SCP support**: `tscp` for traditional file transfers with Tailscale hostname resolution
+- **Modern SFTP**: `tsftp` command as secure alternative to deprecated SCP protocol
+- **Rsync support**: `trsync` for efficient file synchronization with Tailscale hosts
+- **Conditional loading**: Commands only load when underlying tools (scp, sftp, rsync) are available
+
+### 🚀 Advanced Features
+- **Parallel SSH**: `tmussh` for executing commands on multiple hosts simultaneously (requires mussh)
+- **Version-aware completion**: Detects mussh version and offers appropriate parameters
+- **Wildcard support**: Use patterns like `"web-*"` for multi-host operations
+- **Intelligent tab completion**: Autocomplete Tailscale hostnames with Levenshtein distance sorting
+- **Fuzzy matching**: Find hosts even with partial names, sorted by similarity
+
+### 🔧 Smart Resolution & Compatibility
 - **Smart resolution**: Automatically uses MagicDNS when available, falls back to IPs
 - **SSH fallback**: Seamlessly falls back to regular SSH for non-Tailscale hosts
-- **Multi-shell support**: Works with both Bash and Zsh
-- **ssh-copy-id wrapper**: Smart host resolution for `dcs_ssh_copy_id` command
+- **Multi-shell support**: Works with both Bash and Zsh with full compatibility
+- **Conditional features**: Only enables commands when required tools are installed
+- **Clean completion**: Internal functions hidden from tab completion
 
-## Requirements
+## 📋 Requirements
 
-- Bash 4.0+ or Zsh
-- `jq` (JSON processor)
-- `tailscale` (Tailscale CLI)
-- SSH client
+### Core Requirements
+- **Shell**: Bash 4.0+ or Zsh
+- **JSON processor**: `jq` for parsing Tailscale status
+- **Tailscale CLI**: `tailscale` command must be installed and running
+- **SSH client**: Standard `ssh` command
+
+### Optional Dependencies (Auto-detected)
+- **scp**: For `tscp` file transfer functionality
+- **sftp**: For `tsftp` secure file transfer functionality  
+- **rsync**: For `trsync` synchronization functionality
+- **mussh**: For `tmussh` parallel SSH execution
+
+**Note**: Commands are conditionally loaded - only available tools will be enabled.
 
 ## Installation
 
-### 🚀 Quick Install (One-line)
+### 🚀 Quick Install (Recommended)
 
 ```bash
-# Install for current user (prompts for ts dispatcher)
-curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash
+# Download latest release
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.1.tar.gz
+tar -xzf v0.2.1.tar.gz
+cd tailscale-cli-helpers-0.2.1
 
-# System-wide install (includes ts dispatcher)
-curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | sudo bash -s -- --system
+# Install for current user
+./setup.sh
 
-# Install without ts dispatcher
-curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash -s -- --no-dispatcher
+# OR install system-wide (requires sudo)
+sudo ./setup.sh --system
 
-# Uninstall
-curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash -s -- --uninstall
+# Test installation
+./tests/test-both-shells.sh
 ```
 
 ### Manual Install (Local Development)
@@ -80,124 +111,63 @@ sudo ./setup.sh --system # Force system-wide installation (includes ts dispatche
 - Scripts: `~/.config/tailscale-cli-helpers/`
 - Shell loading: Added to `~/.bashrc` or `~/.zshrc`
 
-### Fedora/RHEL (RPM)
+### 📦 Package Installation
 
-#### Option 1: Build and install RPM
+#### Fedora/RHEL/CentOS (RPM)
 ```bash
-# Install build tools
-sudo dnf install -y rpm-build rpmdevtools
-
-# Setup build environment
-rpmdev-setuptree
-
-# Build the package
-cd tailscale-cli-helpers
-wget https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.1.tar.gz -O ~/rpmbuild/SOURCES/v0.1.tar.gz
-rpmbuild -ba tailscale-cli-helpers.spec
-
-# Install the package
-sudo rpm -ivh ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-0.1-1.*.noarch.rpm
+# Download and install RPM package
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/releases/download/v0.2.1/tailscale-cli-helpers-0.2.1-1.noarch.rpm
+sudo rpm -i tailscale-cli-helpers-0.2.1-1.noarch.rpm
 ```
 
-#### Option 2: Manual RPM installation
-The RPM package installs to standard system locations:
-- Scripts in `/usr/share/tailscale-cli-helpers/`
-- Automatically loaded via `/etc/profile.d/tailscale-cli-helpers.sh`
-- Bash completion in `/etc/bash_completion.d/tailscale-cli-helpers`
-
-After installation, the `ts` command is immediately available in new shell sessions.
-
-### 🔄 Updating
-
-To update to the latest version, simply re-run the installation command:
-
+#### Ubuntu/Debian (DEB)
 ```bash
-# Update user installation
-curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | bash
-
-# Update system-wide installation
-curl -fsSL https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/install.sh | sudo bash -s -- --system
-```
-
-The installer will automatically overwrite existing files with the latest versions and display version information during installation.
-
-### Debian-based Systems (DEB)
-
-#### Option 1: Download and install pre-built DEB
-```bash
-# Download the latest DEB package
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/releases/download/v0.1/tailscale-cli-helpers_0.1-2_all.deb
-
-# Install the package (works on all DEB-based systems)
-sudo dpkg -i tailscale-cli-helpers_0.1-2_all.deb
-sudo apt-get install -f  # Install dependencies if needed
-```
-
-#### Option 2: Build and install DEB from source
-```bash
-# Install build tools (adjust package manager as needed)
-sudo apt-get install -y build-essential debhelper    # Debian/Ubuntu
-# sudo apt install -y build-essential debhelper      # Ubuntu/Mint
-
-# Build the package
-cd tailscale-cli-helpers
-dpkg-buildpackage -us -uc
-
-# Install the package
-sudo dpkg -i ../tailscale-cli-helpers_0.1-1_all.deb
-sudo apt-get install -f  # Install dependencies if needed
+# Download and install DEB package
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/releases/download/v0.2.1/tailscale-cli-helpers_0.2.1-2_all.deb
+sudo dpkg -i tailscale-cli-helpers_0.2.1-2_all.deb
 ```
 
 #### Package Installation Details
-The DEB package installs to standard system locations:
-- Scripts in `/usr/share/tailscale-cli-helpers/`
-- Automatically loaded via `/etc/profile.d/tailscale-cli-helpers.sh`
-- Bash completion in `/etc/bash_completion.d/tailscale-cli-helpers`
+Both packages install to standard system locations:
+- **Scripts**: `/usr/share/tailscale-cli-helpers/`
+- **Auto-loading**: `/etc/profile.d/tailscale-cli-helpers.sh`
+- **Bash completion**: `/etc/bash_completion.d/tailscale-cli-helpers`
+- **Setup command**: `/usr/bin/tailscale-cli-helpers-setup`
 
-After installation, the `ts` command is immediately available in new shell sessions.
+After installation, all commands are immediately available in new shell sessions.
 
-### macOS
+### 🔄 Updating
 
-#### Option 1: Homebrew (Recommended)
 ```bash
-# Install via Homebrew (includes dependencies)
-brew install https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/tailscale-cli-helpers.rb
+# Update to latest version (manual installation)
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.1.tar.gz
+tar -xzf v0.2.1.tar.gz
+cd tailscale-cli-helpers-0.2.1
+./setup.sh  # Will update existing installation
+
+# Update package installations
+sudo rpm -U tailscale-cli-helpers-0.2.1-1.noarch.rpm     # RPM systems
+sudo dpkg -i tailscale-cli-helpers_0.2.1-2_all.deb       # DEB systems
 ```
 
-#### Option 2: Manual Installation
+### 🍎 macOS Installation
+
 ```bash
-# Install dependencies
+# Install dependencies first
 brew install jq tailscale
 
-# Clone and setup
-git clone https://github.com/digitalcybersoft/tailscale-cli-helpers.git
-cd tailscale-cli-helpers
+# Download and install
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.1.tar.gz
+tar -xzf v0.2.1.tar.gz
+cd tailscale-cli-helpers-0.2.1
 ./setup.sh
 
-# macOS setup script will install to user locations:
+# macOS installs to user locations:
 # - Scripts: ~/.config/tailscale-cli-helpers/
 # - Shell loading: Added to ~/.zshrc or ~/.bash_profile
 ```
 
-## Usage
-
-### Basic Commands
-
-```bash
-# Connect to a Tailscale node (defaults to root user)
-ts hostname
-
-# Connect as a specific user
-ts user@hostname
-
-# Enable verbose/debug mode
-ts -v hostname
-
-# Test the installation
-./tests/test-tailscale-helper.sh
-```
-
-## Usage
+## 🎯 Usage
 
 ### SSH Connections
 
@@ -320,29 +290,78 @@ tssh admin@<TAB>          # Shows all hosts for admin user
 tssh @prod<TAB>           # Shows all hosts containing "prod"
 ```
 
-### SSH Key Distribution
+### 🔑 SSH Key Management
 
-The package includes an enhanced `ssh-copy-id` that understands Tailscale hosts:
+Secure SSH key distribution with Tailscale hostname resolution:
 
 ```bash
-# Copy SSH key to a Tailscale node
-ssh-copy-id user@hostname
+# Copy SSH key to Tailscale node
+tssh_copy_id hostname                    # As root
+tssh_copy_id user@hostname               # As specific user
 
-# Use with ProxyJump
-ssh-copy-id -J jumphost user@destination
+# Via ts dispatcher
+ts ssh_copy_id hostname                  # Same functionality
+ts ssh_copy_id user@hostname
+
+# With ProxyJump (auto-resolves both hosts)
+tssh_copy_id -J jumphost user@destination
+
+# Standard ssh-copy-id options work
+tssh_copy_id -i ~/.ssh/custom_key.pub hostname
 ```
 
-## How It Works
+### 🗂️ Modern File Transfer (SFTP)
 
-1. **Host Resolution**: When you type `ts hostname`, the function:
-   - Checks if the host exists in your Tailscale network
-   - Uses MagicDNS names when available
-   - Falls back to Tailscale IPs when MagicDNS is disabled
-   - Tries regular SSH if the host isn't in Tailscale
+Secure file transfer using SFTP protocol:
 
-2. **Fuzzy Matching**: Uses Levenshtein distance algorithm to find the closest matching hostname when multiple matches exist
+```bash
+# Interactive SFTP session
+tsftp hostname                           # Connect as root
+tsftp user@hostname                      # Connect as specific user
 
-3. **Completion**: Integrates with your shell's completion system to provide real-time suggestions
+# Via ts dispatcher
+ts sftp hostname                         # Same functionality
+ts sftp user@hostname
+
+# SFTP with options
+tsftp -P 2222 hostname                   # Custom port
+tsftp -i ~/.ssh/custom_key hostname      # Custom identity file
+
+# Example SFTP session:
+# sftp> put localfile.txt /remote/path/
+# sftp> get /remote/file.txt ./
+# sftp> ls -la
+# sftp> quit
+```
+
+## 🔧 How It Works
+
+### 🎯 Intelligent Host Resolution
+When you type `ts hostname`, the system:
+1. **Queries Tailscale**: Gets current network status via `tailscale status --json`
+2. **Security validation**: Validates JSON structure and sanitizes inputs
+3. **Fuzzy matching**: Uses Levenshtein distance algorithm for partial matches
+4. **Smart DNS**: Uses MagicDNS names when available, falls back to IPs
+5. **SSH fallback**: Tries regular SSH if host isn't in Tailscale network
+
+### 🛡️ Security Features
+- **Input validation**: Prevents command injection through hostname validation
+- **JSON security**: Validates Tailscale JSON structure before processing
+- **Pattern sanitization**: Prevents regex injection in search patterns
+- **Safe argument handling**: Uses `--` parameter separation to prevent option injection
+- **Secure jq queries**: Uses `--arg` parameter binding instead of string interpolation
+
+### ⚡ Performance & Efficiency
+- **One-time checks**: Command availability checked once at load time
+- **Conditional loading**: Only loads functionality for installed tools
+- **Shared code**: Single hostname resolution function eliminates duplication
+- **Smart caching**: Reuses Tailscale status data across operations
+
+### 🎮 Tab Completion Intelligence
+- **Levenshtein sorting**: Results sorted by similarity to your input
+- **Version awareness**: Detects tool versions and offers appropriate options
+- **Context sensitivity**: Different completions for different command contexts
+- **Shell compatibility**: Works seamlessly in both Bash and Zsh
 
 ## Uninstallation
 
@@ -357,20 +376,88 @@ sudo ./setup.sh --uninstall
 # Remove the tailscale-cli-helpers source lines from ~/.bashrc or ~/.zshrc
 ```
 
-## Troubleshooting
+## 🔍 Troubleshooting
 
 ### Functions not available after installation
-- Source your shell configuration: `source ~/.bashrc` or `source ~/.zshrc`
-- Start a new shell session
+```bash
+# Reload shell configuration
+source ~/.bashrc        # For Bash
+source ~/.zshrc         # For Zsh
+
+# OR start a new shell session
+exec $SHELL
+
+# Verify installation
+type tssh               # Should show function definition
+type ts                 # Should show function definition
+```
 
 ### Tab completion not working
-- Ensure bash-completion or zsh-completions is installed
-- Check that the functions are properly sourced
+```bash
+# Install completion systems
+sudo dnf install bash-completion        # Fedora/RHEL
+sudo apt install bash-completion        # Ubuntu/Debian
+brew install bash-completion            # macOS
 
-### Missing dependencies
-- Fedora/RHEL: `sudo dnf install jq tailscale`
-- Ubuntu/Debian: `sudo apt-get install jq tailscale`
-- macOS: `brew install jq tailscale`
+# For Zsh users, ensure completion system is enabled
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+source ~/.zshrc
+
+# Test completion
+ts <TAB><TAB>           # Should show available commands/hosts
+```
+
+### Commands missing (tscp, tsftp, trsync, tmussh)
+```bash
+# These commands are conditionally loaded - install missing tools:
+sudo dnf install openssh-clients rsync          # Fedora/RHEL (scp, sftp, rsync)
+sudo apt install openssh-client rsync           # Ubuntu/Debian (scp, sftp, rsync)
+brew install rsync                              # macOS (rsync)
+
+# For tmussh (parallel SSH)
+sudo dnf install mussh                          # If available in repos
+# OR build from source: https://github.com/DigitalCyberSoft/mussh
+
+# Reload to detect new tools
+source ~/.bashrc
+```
+
+### Tailscale connection issues
+```bash
+# Verify Tailscale is running
+tailscale status
+
+# Check network connectivity
+ping 100.100.100.100    # Tailscale DNS server
+
+# Debug hostname resolution
+tssh -v hostname        # Shows detailed resolution process
+```
+
+### Version/compatibility issues
+```bash
+# Check versions
+bash --version          # Needs 4.0+
+zsh --version           # Any recent version
+jq --version            # Any version
+tailscale version       # Any version
+
+# Run comprehensive tests
+./tests/test-both-shells.sh             # Test both shells
+./tests/test-comprehensive-commands.sh   # Test all commands
+./tests/test-security-hardening.sh      # Test security features
+```
+
+### Installation issues
+```bash
+# Remove and reinstall
+./setup.sh --uninstall     # Remove current installation
+./setup.sh                 # Clean reinstall
+
+# Check installation paths
+ls -la ~/.config/tailscale-cli-helpers/          # User installation
+ls -la /usr/share/tailscale-cli-helpers/         # System installation
+```
 
 ## Contributing
 
