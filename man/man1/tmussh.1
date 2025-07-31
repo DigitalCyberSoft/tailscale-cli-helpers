@@ -1,0 +1,96 @@
+.TH TMUSSH 1 "July 2025" "Tailscale CLI Helpers 0.2.1" "User Commands"
+.SH NAME
+tmussh \- Parallel SSH execution on Tailscale nodes
+.SH SYNOPSIS
+.B tmussh
+\fB\-h\fR \fIhost1\fR [\fIhost2\fR ...] \fB\-c\fR \fIcommand\fR
+.br
+.B tmussh
+\fB\-h\fR "\fIpattern\fR" \fB\-c\fR \fIcommand\fR
+.br
+.B tmussh
+\fB\-H\fR \fIhostfile\fR \fB\-c\fR \fIcommand\fR
+.SH DESCRIPTION
+.B tmussh
+provides parallel SSH execution across multiple Tailscale nodes using mussh. It resolves Tailscale hostnames and supports wildcard patterns for host selection.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-hosts " \fIhost_list\fR"
+Space-separated list of hosts or wildcard patterns. Wildcards are expanded against Tailscale node names
+.TP
+.BR \-H ", " \-\-hostfile " \fIfile\fR"
+Read hosts from specified file
+.TP
+.BR \-c ", " \-\-command " \fIcommand\fR"
+Command to execute on all hosts
+.TP
+.BR \-m " \fInum\fR"
+Run on at most num hosts concurrently (default: unlimited)
+.TP
+.BR \-t " \fIseconds\fR"
+Timeout for each host (default: no timeout)
+.TP
+.BR \-v
+Verbose output
+.TP
+.BR \-q
+Quiet mode, only show command output
+.SH WILDCARD PATTERNS
+\fBtmussh\fR supports shell-style wildcards for host selection:
+.IP \(bu 4
+\fB*\fR matches any number of characters
+.IP \(bu 4
+\fB?\fR matches a single character
+.IP \(bu 4
+Patterns are matched against all Tailscale node names
+.IP \(bu 4
+Multiple patterns can be specified
+.SH EXAMPLES
+.TP
+Execute on specific hosts:
+.B tmussh -h host1 host2 host3 -c "uptime"
+.TP
+Use wildcards:
+.B tmussh -h "web-*" -c "systemctl status nginx"
+.TP
+Limit concurrent execution:
+.B tmussh -m 5 -h "prod-*" -c "df -h"
+.TP
+Different users per host:
+.B tmussh -h admin@web1 root@web2 -c "whoami"
+.TP
+From host file:
+.B tmussh -H servers.txt -c "hostname"
+.TP
+With timeout:
+.B tmussh -t 30 -h "db-*" -c "mysql -e 'SHOW STATUS'"
+.SH OUTPUT FORMAT
+Output is prefixed with the hostname for each command:
+.PP
+.nf
+[host1]: Command output from host1
+[host2]: Command output from host2
+.fi
+.SH PARALLEL EXECUTION
+Commands are executed in parallel on all specified hosts:
+.IP \(bu 4
+Default: unlimited parallel execution
+.IP \(bu 4
+Use -m to limit concurrent connections
+.IP \(bu 4
+Failed hosts are reported at the end
+.IP \(bu 4
+Exit status reflects overall success
+.SH DEPENDENCIES
+Requires \fBmussh\fR to be installed. The command will not be available if mussh is not found in PATH.
+.PP
+Install mussh from: https://github.com/DigitalCyberSoft/mussh
+.SH SEE ALSO
+.BR mussh (1),
+.BR tssh (1),
+.BR ts (1),
+.BR tailscale (1)
+.SH AUTHOR
+Built by Digital Cyber Soft
+.SH BUGS
+Report bugs at https://github.com/DigitalCyberSoft/tailscale-cli-helpers/issues

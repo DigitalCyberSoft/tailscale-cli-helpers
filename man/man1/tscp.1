@@ -1,0 +1,62 @@
+.TH TSCP 1 "July 2025" "Tailscale CLI Helpers 0.2.1" "User Commands"
+.SH NAME
+tscp \- SCP with Tailscale hostname resolution
+.SH SYNOPSIS
+.B tscp
+[\fIscp_options\fR] \fIsource\fR \fIdestination\fR
+.SH DESCRIPTION
+.B tscp
+provides SCP file transfer functionality with automatic Tailscale hostname resolution. It resolves Tailscale hostnames in remote file specifications (host:path) to their MagicDNS names or IP addresses.
+.SH OPTIONS
+All options are passed directly to the underlying scp command. Common options include:
+.TP
+.BR \-r
+Recursively copy entire directories
+.TP
+.BR \-p
+Preserve modification times, access times, and modes
+.TP
+.BR \-P " \fIport\fR"
+Connect to specified port
+.TP
+.BR \-i " \fIidentity_file\fR"
+Select identity file for public key authentication
+.TP
+.BR \-v
+Verbose mode
+.SH EXAMPLES
+.TP
+Copy file to remote host:
+.B tscp localfile.txt mynode:/remote/path/
+.TP
+Copy file from remote host:
+.B tscp mynode:/remote/file.txt ./
+.TP
+Copy with specific user:
+.B tscp file.txt user@mynode:/path/
+.TP
+Recursive directory copy:
+.B tscp -r local_dir/ mynode:/remote/path/
+.TP
+Copy with custom port:
+.B tscp -P 2222 file.txt mynode:/path/
+.SH HOSTNAME RESOLUTION
+\fBtscp\fR automatically detects and resolves Tailscale hostnames in remote file specifications:
+.IP \(bu 4
+Patterns like "hostname:path" are parsed for hostname resolution
+.IP \(bu 4
+Both source and destination can use Tailscale hostnames
+.IP \(bu 4
+Falls back to original hostname if not found in Tailscale network
+.SH DEPENDENCIES
+Requires \fBscp\fR to be installed. The command will not be available if scp is not found in PATH.
+.SH SEE ALSO
+.BR scp (1),
+.BR tssh (1),
+.BR tsftp (1),
+.BR trsync (1),
+.BR tailscale (1)
+.SH AUTHOR
+Built by Digital Cyber Soft
+.SH BUGS
+Report bugs at https://github.com/DigitalCyberSoft/tailscale-cli-helpers/issues

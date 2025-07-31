@@ -1,0 +1,87 @@
+.TH TSSH_COPY_ID 1 "July 2025" "Tailscale CLI Helpers 0.2.1" "User Commands"
+.SH NAME
+tssh_copy_id \- Copy SSH keys to Tailscale nodes
+.SH SYNOPSIS
+.B tssh_copy_id
+[\fIoptions\fR] \fIhostname\fR
+.br
+.B tssh_copy_id
+[\fIoptions\fR] \fIuser\fR@\fIhostname\fR
+.br
+.B tssh_copy_id
+\fB\-J\fR \fIjumphost\fR \fIuser\fR@\fIdestination\fR
+.SH DESCRIPTION
+.B tssh_copy_id
+copies SSH public keys to Tailscale nodes with automatic hostname resolution. It resolves both target and jump hosts (when using ProxyJump) to their Tailscale addresses.
+.PP
+When connecting without specifying a user, \fBtssh_copy_id\fR defaults to copying keys for the root user.
+.SH OPTIONS
+.TP
+.BR \-i " \fIidentity_file\fR"
+Use specified public key file instead of default
+.TP
+.BR \-p " \fIport\fR"
+Connect to specified port
+.TP
+.BR \-o " \fIssh_option\fR"
+Pass option to ssh in ssh_config format
+.TP
+.BR \-f
+Force copying of keys without trying to check if they are already present
+.TP
+.BR \-J " \fIjumphost\fR"
+Use ProxyJump to connect through specified jump host. The jump host is also resolved if it's a Tailscale node
+.SH EXAMPLES
+.TP
+Copy SSH key to root user:
+.B tssh_copy_id mynode
+.TP
+Copy to specific user:
+.B tssh_copy_id user@mynode
+.TP
+Use specific key:
+.B tssh_copy_id -i ~/.ssh/custom_key.pub mynode
+.TP
+Use ProxyJump:
+.B tssh_copy_id -J jumpnode user@destination
+.TP
+Custom port:
+.B tssh_copy_id -p 2222 mynode
+.SH HOSTNAME RESOLUTION
+\fBtssh_copy_id\fR resolves Tailscale hostnames for:
+.IP \(bu 4
+The target host where keys will be copied
+.IP \(bu 4
+The jump host when using -J option
+.IP \(bu 4
+Falls back to original hostnames if not found in Tailscale network
+.SH SECURITY
+SSH keys provide secure, passwordless authentication:
+.IP \(bu 4
+Only public keys are copied to remote hosts
+.IP \(bu 4
+Private keys never leave your local system
+.IP \(bu 4
+Keys are appended to ~/.ssh/authorized_keys on the remote host
+.IP \(bu 4
+Proper permissions are set automatically
+.SH FILES
+.TP
+.I ~/.ssh/id_rsa.pub
+Default RSA public key
+.TP
+.I ~/.ssh/id_ecdsa.pub
+Default ECDSA public key
+.TP
+.I ~/.ssh/id_ed25519.pub
+Default Ed25519 public key
+.SH SEE ALSO
+.BR ssh-copy-id (1),
+.BR tssh (1),
+.BR ts (1),
+.BR ssh-keygen (1),
+.BR tailscale (1)
+.SH AUTHOR
+Built by Digital Cyber Soft
+.SH BUGS
+Report bugs at https://github.com/DigitalCyberSoft/tailscale-cli-helpers/issues

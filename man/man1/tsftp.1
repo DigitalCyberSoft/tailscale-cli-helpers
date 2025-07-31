@@ -1,0 +1,80 @@
+.TH TSFTP 1 "July 2025" "Tailscale CLI Helpers 0.2.1" "User Commands"
+.SH NAME
+tsftp \- SFTP with Tailscale hostname resolution
+.SH SYNOPSIS
+.B tsftp
+[\fIsftp_options\fR] \fIhostname\fR
+.br
+.B tsftp
+[\fIsftp_options\fR] \fIuser\fR@\fIhostname\fR
+.SH DESCRIPTION
+.B tsftp
+provides secure file transfer using SFTP protocol with automatic Tailscale hostname resolution. It resolves Tailscale hostnames to their MagicDNS names or IP addresses before establishing the SFTP connection.
+.PP
+When connecting without specifying a user, \fBtsftp\fR defaults to connecting as the root user.
+.SH OPTIONS
+All options are passed directly to the underlying sftp command. Common options include:
+.TP
+.BR \-P " \fIport\fR"
+Connect to specified port
+.TP
+.BR \-i " \fIidentity_file\fR"
+Select identity file for public key authentication
+.TP
+.BR \-o " \fIssh_option\fR"
+Pass options to ssh in ssh_config format
+.TP
+.BR \-v
+Raise logging level (can be used multiple times)
+.TP
+.BR \-b " \fIbatchfile\fR"
+Batch mode: read commands from batchfile
+.SH EXAMPLES
+.TP
+Interactive SFTP session as root:
+.B tsftp mynode
+.TP
+Connect as specific user:
+.B tsftp user@mynode
+.TP
+Connect with custom port:
+.B tsftp -P 2222 mynode
+.TP
+Use specific identity file:
+.B tsftp -i ~/.ssh/custom_key mynode
+.SH SFTP COMMANDS
+Once connected, common SFTP commands include:
+.IP \(bu 4
+\fBput localfile.txt /remote/path/\fR - Upload file
+.IP \(bu 4
+\fBget /remote/file.txt\fR - Download file
+.IP \(bu 4
+\fBls\fR - List remote directory
+.IP \(bu 4
+\fBcd /path\fR - Change remote directory
+.IP \(bu 4
+\fBlcd /path\fR - Change local directory
+.IP \(bu 4
+\fBquit\fR - Exit SFTP session
+.SH ADVANTAGES
+SFTP is recommended over SCP for modern file transfers:
+.IP \(bu 4
+More secure protocol design
+.IP \(bu 4
+Better error handling
+.IP \(bu 4
+Supports resuming interrupted transfers
+.IP \(bu 4
+Interactive file management capabilities
+.SH DEPENDENCIES
+Requires \fBsftp\fR to be installed. The command will not be available if sftp is not found in PATH.
+.SH SEE ALSO
+.BR sftp (1),
+.BR tssh (1),
+.BR tscp (1),
+.BR trsync (1),
+.BR tailscale (1)
+.SH AUTHOR
+Built by Digital Cyber Soft
+.SH BUGS
+Report bugs at https://github.com/DigitalCyberSoft/tailscale-cli-helpers/issues

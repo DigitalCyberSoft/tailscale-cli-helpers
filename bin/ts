@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+#
+# ts - Tailscale CLI dispatcher
+# Multi-purpose command for Tailscale operations
+#
+# Built by Digital Cyber Soft
+
+# Detect shell and set compatibility options
+if [ -n "$ZSH_VERSION" ]; then
+    emulate -L bash
+    setopt BASH_REMATCH
+    setopt KSH_ARRAYS
+fi
+
+# Enable safety features
+set -o pipefail
+IFS=$' \t\n'
+
+# Version
+TS_VERSION="0.2.1"
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+fi
+
+# Show help
+show_help() {
+    echo "ts - Tailscale CLI helper dispatcher v$TAILSCALE_CLI_HELPERS_VERSION"
+    echo ""
+    echo "Usage:"
+    echo "  ts <hostname>                    SSH to hostname (default action)"
+    echo "  ts ssh <hostname>                SSH to hostname"
+    echo "  ts ssh_copy_id <hostname>        Copy SSH key to hostname"
+    echo "  ts scp <source> <dest>           Copy files via SCP"
+    echo "  ts sftp <hostname>               Start SFTP session"
+    echo "  ts rsync [options] <src> <dst>   Sync files via rsync"
+    echo "  ts mussh [options]               Run mussh with Tailscale hosts"
+    echo "  ts help                          Show this help"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help       Show this help message"
+    echo "  -V, --version    Show version information"
+    echo ""
+    echo "The default action when only a hostname is provided is SSH."
+    echo "All commands support Tailscale hostname resolution with fuzzy matching."
+}
+
+# Main dispatcher
+main() {
+    # Handle version and help early, before any processing
+    for arg in "$@"; do
+        case "$arg" in
+            --version|-V)
+                echo "ts $TAILSCALE_CLI_HELPERS_VERSION"
+                exit 0
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+        esac
+    done
+    
+    if [[ $# -eq 0 ]]; then
+        show_help
+        exit 0
+    fi
+    
+    local subcommand="$1"
+    shift
+    
+    case "$subcommand" in
+        help)
+            show_help
+            exit 0
+            ;;
+        ssh)
+            # Explicit SSH command
+            exec "$SCRIPT_DIR/tssh" "$@"
+            ;;
+        ssh_copy_id)
+            # SSH key copy
+            exec "$SCRIPT_DIR/tssh_copy_id" "$@"
+            ;;
+        scp)
+            # SCP file transfer
+            if [[ -x "$SCRIPT_DIR/tscp" ]]; then
+                exec "$SCRIPT_DIR/tscp" "$@"
+            else
+                echo "Error: tscp not available (scp not installed)" >&2
+                exit 1
+            fi
+            ;;
+        sftp)
+            # SFTP file transfer
+            if [[ -x "$SCRIPT_DIR/tsftp" ]]; then
+                exec "$SCRIPT_DIR/tsftp" "$@"
+            else
+                echo "Error: tsftp not available (sftp not installed)" >&2
+                exit 1
+            fi
+            ;;
+        rsync)
+            # Rsync synchronization
+            if [[ -x "$SCRIPT_DIR/trsync" ]]; then
+                exec "$SCRIPT_DIR/trsync" "$@"
+            else
+                echo "Error: trsync not available (rsync not installed)" >&2
+                exit 1
+            fi
+            ;;
+        mussh)
+            # Parallel SSH - check if tmussh is available
+            if command -v tmussh >/dev/null 2>&1; then
+                exec tmussh "$@"
+            else
+                echo "Error: tmussh not available" >&2
+                echo "Install with: sudo dnf install tailscale-cli-helpers-tmussh" >&2
+                echo "Or: sudo apt install tailscale-cli-helpers-tmussh" >&2
+                exit 1
+            fi
+            ;;
+        *)
+            # Default action: treat first argument as hostname for SSH
+            exec "$SCRIPT_DIR/tssh" "$subcommand" "$@"
+            ;;
+    esac
+}
+
+# Run main function
+main "$@"

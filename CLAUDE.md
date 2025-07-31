@@ -6,7 +6,13 @@
 
 To release a new version:
 
-1. Update version in `tailscale-cli-helpers.spec` and `debian/changelog`
+1. Update version in multiple locations:
+   - `VERSION` (main version file)
+   - `lib/common.sh` (TAILSCALE_CLI_HELPERS_VERSION)
+   - `tailscale-cli-helpers.spec` (Version field)
+   - `tailscale-cli-helpers-tmussh.spec` (Version field)
+   - `debian/changelog` 
+   - `debian-tmussh/changelog`
 2. Update Homebrew formula SHA256 hash (if needed)
 3. Commit changes and create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
 4. Build packages (see below)
@@ -16,26 +22,45 @@ To release a new version:
 
 ### RPM Package
 ```bash
-# Download source
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/vX.Y.Z.tar.gz -O ~/rpmbuild/SOURCES/vX.Y.Z.tar.gz
+# Create RPM build directories
+mkdir -p ~/rpmbuild/{SOURCES,SPECS,BUILD,RPMS,SRPMS}
 
-# Update spec file to use correct version in %setup
-# Build RPM
-rpmbuild -ba tailscale-cli-helpers.spec
+# Create source tarball (from project directory)
+tar czf ~/rpmbuild/SOURCES/vX.Y.Z.tar.gz --transform 's,^,tailscale-cli-helpers-X.Y.Z/,' \
+    bin/ lib/ man/ \
+    *.spec *.sh *.md LICENSE VERSION tailscale-completion.sh
+
+# Alternative: Download from GitHub (for released versions)
+# wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/vX.Y.Z.tar.gz -O ~/rpmbuild/SOURCES/vX.Y.Z.tar.gz
+
+# Copy spec files
+cp tailscale-cli-helpers.spec ~/rpmbuild/SPECS/
+cp tailscale-cli-helpers-tmussh.spec ~/rpmbuild/SPECS/
+
+# IMPORTANT: Verify changelog dates match correct day of week before building
+# Build main package
+rpmbuild -ba ~/rpmbuild/SPECS/tailscale-cli-helpers.spec
+
+# Build tmussh package (optional)
+rpmbuild -ba ~/rpmbuild/SPECS/tailscale-cli-helpers-tmussh.spec
 
 # Copy to packages directory
 mkdir -p packages
 cp ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.fc42.noarch.rpm packages/
 cp ~/rpmbuild/SRPMS/tailscale-cli-helpers-X.Y.Z-1.fc42.src.rpm packages/
+cp ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-tmussh-X.Y.Z-1.fc42.noarch.rpm packages/
+cp ~/rpmbuild/SRPMS/tailscale-cli-helpers-tmussh-X.Y.Z-1.fc42.src.rpm packages/
 ```
 
 ### DEB Package
 ```bash
 # Convert from RPM using alien
 fakeroot alien --to-deb ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.fc42.noarch.rpm
+fakeroot alien --to-deb ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-tmussh-X.Y.Z-1.fc42.noarch.rpm
 
 # Copy to packages directory
 mv tailscale-cli-helpers_X.Y.Z-2_all.deb packages/
+mv tailscale-cli-helpers-tmussh_X.Y.Z-2_all.deb packages/
 ```
 
 ### Homebrew Formula
@@ -75,20 +100,23 @@ Built by Digital Cyber Soft" package.rpm package.deb
 
 ## File Structure
 
-- `tailscale-ssh-helper.sh` - Main loader script
-- `tailscale-functions.sh` - Core ts command logic
+- `bin/` - Executable scripts (ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tmussh)
+- `lib/` - Shared libraries (common.sh, tailscale-resolver.sh)
+- `man/man1/` - Man pages for all commands
 - `tailscale-completion.sh` - Tab completion system
 - `setup.sh` - Universal installer
-- `tailscale-cli-helpers.spec` - RPM packaging
+- `tailscale-cli-helpers.spec` - Main RPM packaging
+- `tailscale-cli-helpers-tmussh.spec` - tmussh RPM packaging
 - `tailscale-cli-helpers.rb` - Homebrew formula
-- `debian/` - DEB packaging metadata
+- `debian/` - Main DEB packaging metadata
+- `debian-tmussh/` - tmussh DEB packaging metadata
 - `tests/` - Test scripts (not packaged)
 
 ## Installation Methods
 
-1. **Universal**: `./setup.sh` (works on all platforms)
-2. **RPM**: For Fedora/RHEL/CentOS systems
-3. **DEB**: For Ubuntu/Debian systems  
+1. **Universal**: `./setup.sh` (works on all platforms, installs binaries to /usr/local/bin)
+2. **RPM**: For Fedora/RHEL/CentOS systems (`tailscale-cli-helpers` + optional `tailscale-cli-helpers-tmussh`)
+3. **DEB**: For Ubuntu/Debian systems (`tailscale-cli-helpers` + optional `tailscale-cli-helpers-tmussh`)
 4. **Homebrew**: For macOS users (`brew install https://raw.githubusercontent.com/...`)
 
 ## Release Guidelines

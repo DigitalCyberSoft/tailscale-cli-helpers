@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+#
+# tsftp - Tailscale SFTP helper
+# SFTP with Tailscale hostname resolution
+#
+# Built by Digital Cyber Soft
+
+# Detect shell and set compatibility options
+if [ -n "$ZSH_VERSION" ]; then
+    emulate -L bash
+    setopt BASH_REMATCH
+    setopt KSH_ARRAYS
+fi
+
+# Enable safety features
+set -o pipefail
+IFS=$' \t\n'
+
+# Version
+TSFTP_VERSION="0.2.1"
+
+# Check dependencies
+if ! command -v sftp >/dev/null 2>&1; then
+    echo "Error: sftp is required but not installed" >&2
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+fi
+
+# Source the shared resolver library
+if [[ -f "$SCRIPT_DIR/../lib/tailscale-resolver.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/tailscale-resolver.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh"
+else
+    echo "Error: Cannot find tailscale-resolver.sh library" >&2
+    exit 1
+fi
+
+# Show help
+show_tsftp_help() {
+    echo "tsftp - SFTP with Tailscale hostname resolution v$TAILSCALE_CLI_HELPERS_VERSION"
+    echo ""
+    echo "Usage:"
+    echo "  tsftp [options] hostname"
+    echo "  tsftp [options] user@hostname"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help       Show this help message"
+    echo "  -V, --version    Show version information"
+    echo ""
+    echo "Start an SFTP session with a Tailscale node."
+    echo "Resolves Tailscale hostnames automatically."
+}
+
+# Main function
+main() {
+    # Handle version and help early
+    for arg in "$@"; do
+        case "$arg" in
+            --version|-V)
+                echo "tsftp $TAILSCALE_CLI_HELPERS_VERSION"
+                exit 0
+                ;;
+            --help|-h)
+                show_tsftp_help
+                exit 0
+                ;;
+        esac
+    done
+    
+    local sftp_args=()
+    local target_host=""
+    local i=1
+    
+    # Parse arguments
+    while [[ $i -le $# ]]; do
+        local arg="${!i}"
+        
+        case "$arg" in
+            -*)
+                # SFTP option
+                sftp_args+=("$arg")
+                ((i++))
+                # Check if this option needs a value
+                case "$arg" in
+                    -o|-P|-F|-i|-c|-D|-l|-r|-R|-s|-S)
+                        if [[ $i -le $# ]]; then
+                            sftp_args+=("${!i}")
+                            ((i++))
+                        fi
+                        ;;
+                esac
+                ;;
+            *)
+                # This should be the hostname
+                if [[ -z "$target_host" ]]; then
+                    target_host="$arg"
+                else
+                    sftp_args+=("$arg")
+                fi
+                ((i++))
+                ;;
+        esac
+    done
+    
+    # Default to root if no user specified
+    if [[ "$target_host" != *"@"* ]] && [[ -n "$target_host" ]]; then
+        target_host="root@$target_host"
+    fi
+    
+    if [[ -z "$target_host" ]]; then
+        show_tsftp_help
+        exit 1
+    fi
+    
+    # Try to resolve hostname
+    local resolved_host
+    resolved_host=$(resolve_tailscale_host "$target_host")
+    
+    if [[ $? -eq 0 ]]; then
+        exec sftp "${sftp_args[@]}" "$resolved_host"
+    else
+        # Fall back to regular SFTP
+        exec sftp "${sftp_args[@]}" "$target_host"
+    fi
+}
+
+# Run main function
+main "$@"

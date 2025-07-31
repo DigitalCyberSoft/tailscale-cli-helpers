@@ -1,0 +1,60 @@
+#!/bin/sh
+# postinst script for tailscale-cli-helpers
+
+set -e
+
+case "$1" in
+    configure)
+        # Migration: Remove old function-based installation
+        if [ -f /etc/profile.d/tailscale-cli-helpers.sh ]; then
+            # Check if it's the old version (contains source commands)
+            if grep -q "tailscale-ssh-helper.sh" /etc/profile.d/tailscale-cli-helpers.sh 2>/dev/null; then
+                rm -f /etc/profile.d/tailscale-cli-helpers.sh
+                echo "Removed old profile.d script during migration"
+            fi
+        fi
+        
+        # Remove old bash completion if it contains function loading
+        if [ -f /etc/bash_completion.d/tailscale-cli-helpers ]; then
+            if grep -q "tailscale-ssh-helper.sh" /etc/bash_completion.d/tailscale-cli-helpers 2>/dev/null; then
+                rm -f /etc/bash_completion.d/tailscale-cli-helpers.old
+                mv /etc/bash_completion.d/tailscale-cli-helpers /etc/bash_completion.d/tailscale-cli-helpers.old
+                echo "Backed up old bash completion script during migration"
+            fi
+        fi
+        
+        # Remove old function files if they exist without new structure
+        if [ -d /usr/share/tailscale-cli-helpers ] && [ ! -d /usr/share/tailscale-cli-helpers/lib ]; then
+            echo "Removing old function files during migration"
+            rm -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh
+            rm -f /usr/share/tailscale-cli-helpers/tailscale-functions.sh
+            rm -f /usr/share/tailscale-cli-helpers/tailscale-completion.sh
+            rm -f /usr/share/tailscale-cli-helpers/tailscale-mussh.sh
+            rm -f /usr/share/tailscale-cli-helpers/tailscale-ts-dispatcher.sh
+            rmdir /usr/share/tailscale-cli-helpers 2>/dev/null || true
+        fi
+        
+        echo ""
+        echo "================================================================"
+        echo "Tailscale CLI helpers have been installed successfully!"
+        echo ""
+        echo "Commands are now available: ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tmussh"
+        echo "These are immediately available in all shells."
+        echo ""
+        echo "Bash completions will be available in new bash sessions."
+        echo "================================================================"
+        echo ""
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

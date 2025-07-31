@@ -1,0 +1,85 @@
+.TH TRSYNC 1 "July 2025" "Tailscale CLI Helpers 0.2.1" "User Commands"
+.SH NAME
+trsync \- rsync with Tailscale hostname resolution
+.SH SYNOPSIS
+.B trsync
+[\fIrsync_options\fR] \fIsource\fR \fIdestination\fR
+.SH DESCRIPTION
+.B trsync
+provides rsync file synchronization functionality with automatic Tailscale hostname resolution. It resolves Tailscale hostnames in remote file specifications (host:path) to their MagicDNS names or IP addresses.
+.SH OPTIONS
+All options are passed directly to the underlying rsync command. Common options include:
+.TP
+.BR \-a ", " \-\-archive
+Archive mode; equals -rlptgoD (recursive, links, perms, times, group, owner, devices)
+.TP
+.BR \-v ", " \-\-verbose
+Increase verbosity. Also enables hostname resolution debugging in trsync
+.TP
+.BR \-z ", " \-\-compress
+Compress file data during transfer
+.TP
+.BR \-\-delete
+Delete files in destination that don't exist in source
+.TP
+.BR \-\-exclude =\fIPATTERN\fR
+Exclude files matching PATTERN
+.TP
+.BR \-\-dry\-run
+Show what would be transferred without doing it
+.TP
+.BR \-P
+Same as --partial --progress
+.SH EXAMPLES
+.TP
+Sync directory to remote host:
+.B trsync -av local_dir/ mynode:/remote/path/
+.TP
+Sync from remote host:
+.B trsync -av mynode:/remote/path/ local_dir/
+.TP
+Sync with specific user:
+.B trsync -av dir/ user@mynode:/path/
+.TP
+Mirror with deletion:
+.B trsync -av --delete source/ mynode:/dest/
+.TP
+Exclude patterns:
+.B trsync -av --exclude='*.log' dir/ mynode:/dir/
+.TP
+Dry run to preview:
+.B trsync -av --dry-run source/ mynode:/dest/
+.SH HOSTNAME RESOLUTION
+\fBtrsync\fR automatically detects and resolves Tailscale hostnames:
+.IP \(bu 4
+Patterns like "hostname:path" are parsed for hostname resolution
+.IP \(bu 4
+Does not resolve rsync daemon syntax (hostname::module)
+.IP \(bu 4
+When using -v flag, shows hostname resolution details
+.IP \(bu 4
+Falls back to original hostname if not found in Tailscale network
+.SH ADVANTAGES
+rsync provides efficient file synchronization:
+.IP \(bu 4
+Only transfers changed portions of files
+.IP \(bu 4
+Preserves permissions, timestamps, and ownership
+.IP \(bu 4
+Supports compression and bandwidth limiting
+.IP \(bu 4
+Can resume interrupted transfers
+.IP \(bu 4
+Efficient for large directory trees
+.SH DEPENDENCIES
+Requires \fBrsync\fR to be installed. The command will not be available if rsync is not found in PATH.
+.SH SEE ALSO
+.BR rsync (1),
+.BR tssh (1),
+.BR tscp (1),
+.BR tsftp (1),
+.BR tailscale (1)
+.SH AUTHOR
+Built by Digital Cyber Soft
+.SH BUGS
+Report bugs at https://github.com/DigitalCyberSoft/tailscale-cli-helpers/issues

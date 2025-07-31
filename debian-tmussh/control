@@ -1,0 +1,27 @@
+Source: tailscale-cli-helpers-tmussh
+Section: utils
+Priority: optional
+Maintainer: Digital Cyber Soft <support@digitalcybersoft.com>
+Build-Depends: debhelper (>= 10)
+Standards-Version: 4.5.0
+Homepage: https://github.com/digitalcybersoft/tailscale-cli-helpers
+
+Package: tailscale-cli-helpers-tmussh
+Architecture: all
+Depends: ${misc:Depends}, tailscale-cli-helpers (>= 0.2.1), mussh
+Description: Parallel SSH execution on Tailscale nodes using mussh
+ Provides the tmussh command for parallel SSH execution across multiple 
+ Tailscale nodes using mussh. This is an optional extension to the main
+ tailscale-cli-helpers package that adds multi-host parallel execution
+ capabilities with wildcard pattern support.
+ .
+ Features:
+  - Parallel SSH execution on multiple Tailscale nodes
+  - Wildcard pattern support (e.g., "web-*", "prod-*")
+  - Automatic Tailscale hostname resolution
+  - Integration with mussh for robust parallel execution
+ .
+ Usage examples:
+  tmussh -h host1 host2 host3 -c "uptime"
+  tmussh -h "web-*" -c "systemctl status nginx"
+  tmussh -m 5 -h "prod-*" -c "df -h"

@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+#
+# trsync - Tailscale rsync helper
+# rsync with Tailscale hostname resolution
+#
+# Built by Digital Cyber Soft
+
+# Detect shell and set compatibility options
+if [ -n "$ZSH_VERSION" ]; then
+    emulate -L bash
+    setopt BASH_REMATCH
+    setopt KSH_ARRAYS
+fi
+
+# Enable safety features
+set -o pipefail
+IFS=$' \t\n'
+
+# Version
+TRSYNC_VERSION="0.2.1"
+
+# Check dependencies
+if ! command -v rsync >/dev/null 2>&1; then
+    echo "Error: rsync is required but not installed" >&2
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+fi
+
+# Source the shared resolver library
+if [[ -f "$SCRIPT_DIR/../lib/tailscale-resolver.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/tailscale-resolver.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh"
+else
+    echo "Error: Cannot find tailscale-resolver.sh library" >&2
+    exit 1
+fi
+
+# Show help
+show_trsync_help() {
+    echo "trsync - rsync with Tailscale hostname resolution v$TAILSCALE_CLI_HELPERS_VERSION"
+    echo ""
+    echo "Usage:"
+    echo "  trsync [rsync_options] source destination"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help       Show this help message"
+    echo "  -V, --version    Show version information"
+    echo ""
+    echo "rsync file synchronization with automatic Tailscale hostname resolution."
+    echo "Resolves hostnames in remote file specifications (host:path)."
+}
+
+# Main function
+main() {
+    # Handle version and help early
+    for arg in "$@"; do
+        case "$arg" in
+            --version|-V)
+                echo "trsync $TAILSCALE_CLI_HELPERS_VERSION"
+                exit 0
+                ;;
+            --help|-h)
+                show_trsync_help
+                exit 0
+                ;;
+        esac
+    done
+    
+    if [[ $# -eq 0 ]]; then
+        show_trsync_help
+        exit 1
+    fi
+    
+    local resolved_args=()
+    local verbose=false
+    
+    # Check for -v flag
+    for arg in "$@"; do
+        if [[ "$arg" == "-v" ]] || [[ "$arg" == "-"*"v"* ]]; then
+            verbose=true
+            break
+        fi
+    done
+    
+    for arg in "$@"; do
+        if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]] && [[ "$arg" != *"::"* ]]; then
+            # This looks like a remote host:path spec (but not rsync daemon :: syntax)
+            local host_part="${arg%%:*}"
+            local path_part="${arg#*:}"
+            
+            # Try to resolve the hostname
+            local resolved_host
+            resolved_host=$(resolve_tailscale_host "$host_part" "$verbose")
+            if [[ $? -eq 0 ]]; then
+                [[ "$verbose" == "true" ]] && echo "Resolved $host_part to $resolved_host" >&2
+                resolved_args+=("${resolved_host}:${path_part}")
+            else
+                # Keep original if not resolvable
+                resolved_args+=("$arg")
+            fi
+        else
+            # Keep argument as-is
+            resolved_args+=("$arg")
+        fi
+    done
+    
+    # Execute rsync with resolved arguments
+    exec rsync "${resolved_args[@]}"
+}
+
+# Run main function
+main "$@"

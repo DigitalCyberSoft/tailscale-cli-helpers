@@ -1,0 +1,88 @@
+.TH TS 1 "July 2025" "Tailscale CLI Helpers 0.2.1" "User Commands"
+.SH NAME
+ts \- Tailscale CLI dispatcher for common operations
+.SH SYNOPSIS
+.B ts
+.br
+.B ts
+\fIhostname\fR [\fIssh_options\fR]
+.br
+.B ts
+\fIsubcommand\fR [\fIoptions\fR]
+.SH DESCRIPTION
+.B ts
+is a multi-purpose dispatcher for Tailscale operations. When called with just a hostname, it defaults to SSH. Otherwise, it dispatches to the appropriate subcommand.
+.SH SUBCOMMANDS
+.TP
+.BR ssh " \fIhostname\fR"
+SSH to a Tailscale node (same as using \fBtssh\fR directly)
+.TP
+.BR ssh_copy_id " \fIhostname\fR"
+Copy SSH keys to a Tailscale node
+.TP
+.BR scp " \fIsource\fR \fIdest\fR"
+Copy files via SCP with Tailscale hostname resolution
+.TP
+.BR sftp " \fIhostname\fR"
+Start an SFTP session with a Tailscale node
+.TP
+.BR rsync " [\fIoptions\fR] \fIsrc\fR \fIdst\fR"
+Sync files via rsync with Tailscale hostname resolution
+.TP
+.BR mussh " [\fIoptions\fR]"
+Run mussh for parallel SSH execution on Tailscale nodes
+.TP
+.BR help
+Show help message and available subcommands
+.SH DEFAULT BEHAVIOR
+When called with a hostname as the first argument (not matching any subcommand), \fBts\fR defaults to SSH:
+.PP
+.B ts mynode
+.br
+is equivalent to:
+.br
+.B ts ssh mynode
+.SH EXAMPLES
+.TP
+SSH to a node (default action):
+.B ts mynode
+.TP
+Explicit SSH:
+.B ts ssh user@mynode
+.TP
+Copy files:
+.B ts scp file.txt mynode:/path/
+.TP
+Start SFTP session:
+.B ts sftp mynode
+.TP
+Sync directories:
+.B ts rsync -av local/ mynode:/remote/
+.TP
+Copy SSH keys:
+.B ts ssh_copy_id mynode
+.TP
+Show help:
+.B ts help
+.SH AVAILABILITY
+Not all subcommands may be available. Commands are only enabled if their underlying tools are installed:
+.IP \(bu 4
+\fBscp\fR requires scp to be installed
+.IP \(bu 4
+\fBsftp\fR requires sftp to be installed
+.IP \(bu 4
+\fBrsync\fR requires rsync to be installed
+.IP \(bu 4
+\fBmussh\fR requires mussh to be installed
+.SH SEE ALSO
+.BR tssh (1),
+.BR tscp (1),
+.BR tsftp (1),
+.BR trsync (1),
+.BR tssh_copy_id (1),
+.BR tmussh (1),
+.BR tailscale (1)
+.SH AUTHOR
+Built by Digital Cyber Soft
+.SH BUGS
+Report bugs at https://github.com/DigitalCyberSoft/tailscale-cli-helpers/issues

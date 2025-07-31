@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	# Create directories
+	mkdir -p debian/tailscale-cli-helpers-tmussh/usr/bin
+	mkdir -p debian/tailscale-cli-helpers-tmussh/usr/share/man/man1
+	mkdir -p debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh
+	
+	# Install tmussh executable
+	install -m 755 bin/tmussh debian/tailscale-cli-helpers-tmussh/usr/bin/
+	
+	# Install man page
+	gzip -c man/man1/tmussh.1 > debian/tailscale-cli-helpers-tmussh/usr/share/man/man1/tmussh.1.gz
+	
+	# Install documentation
+	echo "Tailscale CLI Helpers - tmussh Extension" > debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo "" >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo "This package provides the tmussh command for parallel SSH execution" >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo "across multiple Tailscale nodes using mussh." >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo "" >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo "Usage:" >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo '  tmussh -h host1 host2 host3 -c "uptime"' >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo '  tmussh -h "web-*" -c "systemctl status nginx"' >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo '  tmussh -m 5 -h "prod-*" -c "df -h"' >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo "" >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README
+	echo "See: man tmussh for complete documentation" >> debian/tailscale-cli-helpers-tmussh/usr/share/doc/tailscale-cli-helpers-tmussh/README

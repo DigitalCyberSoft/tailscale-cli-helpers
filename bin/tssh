@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+#
+# tssh - Tailscale SSH helper
+# Quick SSH connections to Tailscale nodes with hostname completion
+#
+# Built by Digital Cyber Soft
+
+# Detect shell and set compatibility options
+if [ -n "$ZSH_VERSION" ]; then
+    # Running in zsh - enable bash compatibility
+    emulate -L bash
+    setopt BASH_REMATCH
+    setopt KSH_ARRAYS
+fi
+
+# Enable safety features
+set -o pipefail
+IFS=$' \t\n'
+
+# Version
+TSSH_VERSION="0.2.1"
+
+# Check dependencies
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required but not installed" >&2
+    exit 1
+fi
+
+if ! command -v tailscale >/dev/null 2>&1; then
+    echo "Error: tailscale is required but not installed" >&2
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+fi
+
+# Source the shared resolver library
+if [[ -f "$SCRIPT_DIR/../lib/tailscale-resolver.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/tailscale-resolver.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh"
+else
+    echo "Error: Cannot find tailscale-resolver.sh library" >&2
+    exit 1
+fi
+
+# Show help
+show_tssh_help() {
+    echo "tssh - SSH to Tailscale nodes with automatic hostname resolution v$TAILSCALE_CLI_HELPERS_VERSION"
+    echo ""
+    echo "Usage:"
+    echo "  tssh [options] hostname [ssh_options]"
+    echo "  tssh [options] user@hostname [ssh_options]"
+    echo ""
+    echo "Options:"
+    echo "  -v, --verbose    Show debug information"
+    echo "  -h, --help       Show this help message"
+    echo "  -V, --version    Show version information"
+    echo ""
+    echo "Connects to Tailscale nodes with automatic hostname resolution."
+    echo "Falls back to regular SSH if host is not in Tailscale network."
+}
+
+# Main function
+main() {
+    # Handle version and help early, before any processing
+    for arg in "$@"; do
+        case "$arg" in
+            --version|-V)
+                echo "tssh $TAILSCALE_CLI_HELPERS_VERSION"
+                exit 0
+                ;;
+            --help|-h)
+                show_tssh_help
+                exit 0
+                ;;
+        esac
+    done
+    
+    local verbose=false
+    local resolve_only=false
+    local ssh_args=()
+    local target_host=""
+    local i=1
+    
+    # Parse arguments
+    while [[ $i -le $# ]]; do
+        local arg="${!i}"
+        
+        case "$arg" in
+            -v|--verbose)
+                verbose=true
+                ((i++))
+                ;;
+            --resolve-only)
+                resolve_only=true
+                ((i++))
+                ;;
+            -*)
+                # SSH option
+                ssh_args+=("$arg")
+                ((i++))
+                # Check if this option needs a value
+                case "$arg" in
+                    -o|-i|-l|-p|-F|-E|-L|-R|-D|-W|-J|-Q|-c|-m|-b|-e)
+                        if [[ $i -le $# ]]; then
+                            ssh_args+=("${!i}")
+                            ((i++))
+                        fi
+                        ;;
+                esac
+                ;;
+            *)
+                # This should be the hostname
+                if [[ -z "$target_host" ]]; then
+                    target_host="$arg"
+                else
+                    ssh_args+=("$arg")
+                fi
+                ((i++))
+                ;;
+        esac
+    done
+    
+    # Default to root if no user specified
+    if [[ "$target_host" != *"@"* ]] && [[ -n "$target_host" ]]; then
+        target_host="root@$target_host"
+    fi
+    
+    if [[ -z "$target_host" ]]; then
+        if [[ "$resolve_only" == "true" ]]; then
+            exit 1
+        fi
+        show_tssh_help
+        exit 1
+    fi
+    
+    # Try to resolve hostname
+    local resolved_host
+    resolved_host=$(resolve_tailscale_host "$target_host" "$verbose")
+    
+    if [[ "$resolve_only" == "true" ]]; then
+        if [[ $? -eq 0 ]]; then
+            echo "$resolved_host"
+            exit 0
+        else
+            exit 1
+        fi
+    fi
+    
+    if [[ $? -eq 0 ]]; then
+        [[ "$verbose" == "true" ]] && echo "[DEBUG] Connecting to resolved host: $resolved_host" >&2
+        exec ssh "$resolved_host" "${ssh_args[@]}"
+    else
+        # Fall back to regular SSH
+        [[ "$verbose" == "true" ]] && echo "[DEBUG] Falling back to regular SSH for: $target_host" >&2
+        exec ssh "$target_host" "${ssh_args[@]}"
+    fi
+}
+
+# Run main function
+main "$@"

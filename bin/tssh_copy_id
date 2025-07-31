@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+#
+# tssh_copy_id - Tailscale SSH key copy helper
+# ssh-copy-id with Tailscale hostname resolution
+#
+# Built by Digital Cyber Soft
+
+# Detect shell and set compatibility options
+if [ -n "$ZSH_VERSION" ]; then
+    emulate -L bash
+    setopt BASH_REMATCH
+    setopt KSH_ARRAYS
+fi
+
+# Enable safety features
+set -o pipefail
+IFS=$' \t\n'
+
+# Version
+TSSH_COPY_ID_VERSION="0.2.1"
+
+# Check dependencies
+if ! command -v ssh-copy-id >/dev/null 2>&1; then
+    echo "Error: ssh-copy-id is required but not installed" >&2
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+fi
+
+# Source the shared resolver library
+if [[ -f "$SCRIPT_DIR/../lib/tailscale-resolver.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/tailscale-resolver.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh"
+else
+    echo "Error: Cannot find tailscale-resolver.sh library" >&2
+    exit 1
+fi
+
+# Show help
+show_tssh_copy_id_help() {
+    echo "tssh_copy_id - Copy SSH keys to Tailscale nodes v$TAILSCALE_CLI_HELPERS_VERSION"
+    echo ""
+    echo "Usage:"
+    echo "  tssh_copy_id [options] hostname"
+    echo "  tssh_copy_id [options] user@hostname"
+    echo "  tssh_copy_id -J jumphost user@destination"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help       Show this help message"
+    echo "  -V, --version    Show version information"
+    echo ""
+    echo "Copy SSH keys to a Tailscale node with hostname resolution."
+    echo "Resolves both target and jump hosts automatically."
+}
+
+# Main function
+main() {
+    # Handle version and help early
+    for arg in "$@"; do
+        case "$arg" in
+            --version|-V)
+                echo "tssh_copy_id $TAILSCALE_CLI_HELPERS_VERSION"
+                exit 0
+                ;;
+            --help|-h)
+                show_tssh_copy_id_help
+                exit 0
+                ;;
+        esac
+    done
+    
+    local args=()
+    local target_host=""
+    local use_proxy_jump=false
+    local jumphost=""
+    local i=1
+    
+    # Parse arguments
+    while [[ $i -le $# ]]; do
+        local arg="${!i}"
+        
+        case "$arg" in
+            -J)
+                # ProxyJump option
+                use_proxy_jump=true
+                ((i++))
+                if [[ $i -le $# ]]; then
+                    jumphost="${!i}"
+                    ((i++))
+                fi
+                ;;
+            -*)
+                # Other options
+                args+=("$arg")
+                ((i++))
+                # Check if this option needs a value
+                case "$arg" in
+                    -i|-p|-o|-f)
+                        if [[ $i -le $# ]]; then
+                            args+=("${!i}")
+                            ((i++))
+                        fi
+                        ;;
+                esac
+                ;;
+            *)
+                # This should be the hostname
+                if [[ -z "$target_host" ]]; then
+                    target_host="$arg"
+                else
+                    args+=("$arg")
+                fi
+                ((i++))
+                ;;
+        esac
+    done
+    
+    # Default to root if no user specified
+    if [[ "$target_host" != *"@"* ]] && [[ -n "$target_host" ]]; then
+        target_host="root@$target_host"
+    fi
+    
+    if [[ -z "$target_host" ]]; then
+        show_tssh_copy_id_help
+        exit 1
+    fi
+    
+    # Resolve target host
+    local resolved_target
+    resolved_target=$(resolve_tailscale_host "$target_host")
+    if [[ $? -ne 0 ]]; then
+        # Fall back to original hostname
+        resolved_target="$target_host"
+    fi
+    
+    # Handle ProxyJump if specified
+    if [[ "$use_proxy_jump" == "true" ]] && [[ -n "$jumphost" ]]; then
+        # Try to resolve jumphost
+        local resolved_jumphost
+        resolved_jumphost=$(resolve_tailscale_host "$jumphost")
+        if [[ $? -eq 0 ]]; then
+            args+=("-J" "$resolved_jumphost")
+        else
+            args+=("-J" "$jumphost")
+        fi
+    fi
+    
+    # Execute ssh-copy-id with resolved hostname
+    exec ssh-copy-id "${args[@]}" "$resolved_target"
+}
+
+# Run main function
+main "$@"

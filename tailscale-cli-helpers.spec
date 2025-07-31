@@ -26,53 +26,222 @@ across multiple nodes.
 rm -rf $RPM_BUILD_ROOT
 
 # Create directories
-mkdir -p $RPM_BUILD_ROOT%{_datadir}/%{name}
-mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/profile.d
-mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/bash_completion.d
 mkdir -p $RPM_BUILD_ROOT%{_bindir}
+mkdir -p $RPM_BUILD_ROOT%{_datadir}/%{name}/lib
+mkdir -p $RPM_BUILD_ROOT%{_mandir}/man1
 mkdir -p $RPM_BUILD_ROOT%{_docdir}/%{name}
 
-# Install main files to /usr/share
-install -m 644 tailscale-ssh-helper.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
-install -m 644 tailscale-functions.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
-install -m 644 tailscale-completion.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
-install -m 644 tailscale-mussh.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
-install -m 644 tailscale-ts-dispatcher.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/
+# Install executables (excluding tmussh - separate package)
+install -m 755 bin/ts $RPM_BUILD_ROOT%{_bindir}/
+install -m 755 bin/tssh $RPM_BUILD_ROOT%{_bindir}/
+install -m 755 bin/tscp $RPM_BUILD_ROOT%{_bindir}/
+install -m 755 bin/tsftp $RPM_BUILD_ROOT%{_bindir}/
+install -m 755 bin/trsync $RPM_BUILD_ROOT%{_bindir}/
+install -m 755 bin/tssh_copy_id $RPM_BUILD_ROOT%{_bindir}/
+
+# Install shared library
+install -m 644 lib/tailscale-resolver.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/lib/
+
+# Install man pages (excluding tmussh - separate package)
+for man in man/man1/*.1; do
+    if [[ "$(basename "$man")" != "tmussh.1" ]]; then
+        gzip -c "$man" > $RPM_BUILD_ROOT%{_mandir}/man1/$(basename "$man").gz
+    fi
+done
+
+# Install setup script
 install -m 755 setup.sh $RPM_BUILD_ROOT%{_bindir}/%{name}-setup
 
-# Create profile.d script for all shells
-cat > $RPM_BUILD_ROOT%{_sysconfdir}/profile.d/%{name}.sh << 'EOF'
-# Tailscale CLI helpers
-if [ -f %{_datadir}/%{name}/tailscale-ssh-helper.sh ]; then
-    . %{_datadir}/%{name}/tailscale-ssh-helper.sh
-fi
-EOF
-
-# Create bash completion script
+# Create bash completion
+mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/bash_completion.d
 cat > $RPM_BUILD_ROOT%{_sysconfdir}/bash_completion.d/%{name} << 'EOF'
-# Tailscale CLI helpers bash completion
-if [ -f %{_datadir}/%{name}/tailscale-ssh-helper.sh ]; then
-    . %{_datadir}/%{name}/tailscale-ssh-helper.sh
+# Bash completion for Tailscale CLI helpers
+
+# Source the shared library for host list functions
+if [[ -f /usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh ]]; then
+    source /usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh
 fi
+
+# Completion for tssh
+_tssh_completion() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+    
+    # Handle options that need values
+    case "$prev" in
+        -i|-l|-p|-F|-E|-L|-R|-D|-W|-J|-Q|-c|-m|-b|-e|-o)
+            return
+            ;;
+    esac
+    
+    # If current word starts with -, show SSH options
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=($(compgen -W "-4 -6 -A -a -C -f -G -g -K -k -M -N -n -q -s -T -t -V -v -X -x -Y -y -B -b -c -D -E -e -F -I -i -J -L -l -m -O -o -p -Q -R -S -W -w" -- "$cur"))
+        return
+    fi
+    
+    # Complete hostnames
+    if type -t get_all_tailscale_hosts >/dev/null 2>&1; then
+        local hosts=$(get_all_tailscale_hosts 2>/dev/null)
+        if [[ -n "$hosts" ]]; then
+            if [[ "$cur" == *@* ]]; then
+                local user_prefix="${cur%%@*}@"
+                local host_part="${cur#*@}"
+                COMPREPLY=($(compgen -W "$hosts" -- "$host_part" | sed "s/^/${user_prefix}/"))
+            else
+                COMPREPLY=($(compgen -W "$hosts" -- "$cur"))
+            fi
+        fi
+    fi
+}
+
+# Completion for ts dispatcher
+_ts_completion() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+    
+    if [[ ${COMP_CWORD} -eq 1 ]]; then
+        local available_commands="help ssh ssh_copy_id"
+        command -v scp >/dev/null 2>&1 && available_commands="$available_commands scp"
+        command -v sftp >/dev/null 2>&1 && available_commands="$available_commands sftp"
+        command -v rsync >/dev/null 2>&1 && available_commands="$available_commands rsync"
+        command -v tmussh >/dev/null 2>&1 && available_commands="$available_commands mussh"
+        
+        local hosts=""
+        if type -t get_all_tailscale_hosts >/dev/null 2>&1; then
+            hosts=$(get_all_tailscale_hosts 2>/dev/null)
+        fi
+        
+        COMPREPLY=($(compgen -W "$available_commands $hosts" -- "$cur"))
+        return
+    fi
+    
+    case "${COMP_WORDS[1]}" in
+        ssh|sftp) _tssh_completion ;;
+        ssh_copy_id) _tssh_copy_id_completion ;;
+        scp) _tscp_completion ;;
+        rsync) _trsync_completion ;;
+        mussh) 
+            # Delegate to tmussh if available
+            if command -v tmussh >/dev/null 2>&1; then
+                # Use basic completion
+                COMPREPLY=($(compgen -W "-h --hosts -H --hostfile -c --command" -- "$cur"))
+            fi
+            ;;
+    esac
+}
+
+# Register completions
+complete -F _tssh_completion tssh
+complete -F _ts_completion ts
+complete -F _tssh_completion tsftp
+complete -F _tssh_copy_id_completion tssh_copy_id
+
+# Simplified completions for file transfer commands
+_tscp_completion() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    if [[ "$cur" != *:* ]]; then
+        if type -t get_all_tailscale_hosts >/dev/null 2>&1; then
+            local hosts=$(get_all_tailscale_hosts 2>/dev/null)
+            if [[ -n "$hosts" ]]; then
+                COMPREPLY=($(compgen -W "$hosts" -- "$cur" | sed 's/$/:\/~/'))
+            fi
+        fi
+        COMPREPLY+=($(compgen -f -- "$cur"))
+    fi
+}
+
+_trsync_completion() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=($(compgen -W "-v -a -r -z --delete --exclude --dry-run" -- "$cur"))
+    else
+        _tscp_completion
+    fi
+}
+
+_tssh_copy_id_completion() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+    
+    case "$prev" in
+        -i|-p|-o|-J) return ;;
+    esac
+    
+    if [[ "$cur" == -* ]]; then
+        COMPREPLY=($(compgen -W "-i -p -o -f -J" -- "$cur"))
+    elif type -t get_all_tailscale_hosts >/dev/null 2>&1; then
+        local hosts=$(get_all_tailscale_hosts 2>/dev/null)
+        if [[ -n "$hosts" ]]; then
+            if [[ "$cur" == *@* ]]; then
+                local user_prefix="${cur%%@*}@"
+                local host_part="${cur#*@}"
+                COMPREPLY=($(compgen -W "$hosts" -- "$host_part" | sed "s/^/${user_prefix}/"))
+            else
+                COMPREPLY=($(compgen -W "$hosts" -- "$cur"))
+            fi
+        fi
+    fi
+}
+
+# tmussh completion moved to separate package
+
+complete -F _tscp_completion tscp
+complete -F _trsync_completion trsync
 EOF
 
 # Install documentation
 install -m 644 README.md $RPM_BUILD_ROOT%{_docdir}/%{name}/
 
+%post
+# Migration: Remove old function-based installation
+if [ -f /etc/profile.d/tailscale-cli-helpers.sh ]; then
+    # Check if it's the old version (contains source commands)
+    if grep -q "tailscale-ssh-helper.sh" /etc/profile.d/tailscale-cli-helpers.sh 2>/dev/null; then
+        rm -f /etc/profile.d/tailscale-cli-helpers.sh
+    fi
+fi
+
+# Remove old function files if they exist without new structure
+if [ -d /usr/share/tailscale-cli-helpers ] && [ ! -d /usr/share/tailscale-cli-helpers/lib ]; then
+    rm -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh
+    rm -f /usr/share/tailscale-cli-helpers/tailscale-functions.sh
+    rm -f /usr/share/tailscale-cli-helpers/tailscale-completion.sh
+    rm -f /usr/share/tailscale-cli-helpers/tailscale-mussh.sh
+    rm -f /usr/share/tailscale-cli-helpers/tailscale-ts-dispatcher.sh
+    rmdir /usr/share/tailscale-cli-helpers 2>/dev/null || true
+fi
+
 %files
 %license LICENSE
 %doc %{_docdir}/%{name}/README.md
-%{_datadir}/%{name}/tailscale-ssh-helper.sh
-%{_datadir}/%{name}/tailscale-functions.sh
-%{_datadir}/%{name}/tailscale-completion.sh
-%{_datadir}/%{name}/tailscale-mussh.sh
-%{_datadir}/%{name}/tailscale-ts-dispatcher.sh
-%{_sysconfdir}/profile.d/%{name}.sh
+%{_bindir}/ts
+%{_bindir}/tssh
+%{_bindir}/tscp
+%{_bindir}/tsftp
+%{_bindir}/trsync
+%{_bindir}/tssh_copy_id
+%{_datadir}/%{name}/lib/tailscale-resolver.sh
+%{_mandir}/man1/ts.1.gz
+%{_mandir}/man1/tssh.1.gz
+%{_mandir}/man1/tscp.1.gz
+%{_mandir}/man1/tsftp.1.gz
+%{_mandir}/man1/trsync.1.gz
+%{_mandir}/man1/tssh_copy_id.1.gz
 %{_sysconfdir}/bash_completion.d/%{name}
 %{_bindir}/%{name}-setup
 
 %changelog
-* Mon Jul 22 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.1.3-1
+* Thu Jul 31 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.1-1
+- MAJOR: Refactored from shell functions to standalone executables
+- Commands now immediately available after installation (no shell restart needed)
+- Added complete man pages for all commands
+- Enhanced bash completions with smart hostname resolution
+- Added migration logic to clean up old function-based installations
+- All commands now installed to /usr/bin for immediate availability
+- Maintained all existing functionality: fuzzy matching, security, multi-shell support
+
+* Tue Jul 22 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.1.3-1
 - Added MagicDNS fallback to IP when resolv.conf is misconfigured
 - Fixed autocomplete to return hostnames without domain suffix
 

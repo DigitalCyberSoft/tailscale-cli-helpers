@@ -1,0 +1,83 @@
+.TH TSSH 1 "July 2025" "Tailscale CLI Helpers 0.2.1" "User Commands"
+.SH NAME
+tssh \- SSH to Tailscale nodes with automatic hostname resolution
+.SH SYNOPSIS
+.B tssh
+[\fIOPTIONS\fR] \fIhostname\fR [\fIssh_options\fR]
+.br
+.B tssh
+[\fIOPTIONS\fR] \fIuser\fR@\fIhostname\fR [\fIssh_options\fR]
+.SH DESCRIPTION
+.B tssh
+provides quick SSH connections to Tailscale nodes with automatic hostname resolution and fuzzy matching. It resolves Tailscale hostnames to their MagicDNS names or IP addresses, falling back to regular SSH for non-Tailscale hosts.
+.PP
+When connecting without specifying a user, \fBtssh\fR defaults to connecting as the root user.
+.SH OPTIONS
+.TP
+.BR \-v ", " \-\-verbose
+Show debug information including hostname resolution details.
+.TP
+.BR \-\-resolve\-only
+Only resolve the hostname and print the result without connecting. Used internally by other tools.
+.PP
+All standard SSH options are passed through to the underlying ssh command.
+.SH EXAMPLES
+.TP
+Connect to a Tailscale node as root:
+.B tssh mynode
+.TP
+Connect as a specific user:
+.B tssh user@mynode
+.TP
+Connect with SSH options:
+.B tssh mynode -p 2222 -i ~/.ssh/custom_key
+.TP
+Debug hostname resolution:
+.B tssh -v mynode
+.SH HOSTNAME RESOLUTION
+\fBtssh\fR uses the following hostname resolution process:
+.IP 1. 4
+Queries Tailscale status for all known nodes
+.IP 2. 4
+Attempts exact hostname match first
+.IP 3. 4
+Falls back to fuzzy matching using Levenshtein distance (maximum distance of 5)
+.IP 4. 4
+Prefers MagicDNS names when available, otherwise uses IP addresses
+.IP 5. 4
+Falls back to regular SSH if host is not in Tailscale network
+.SH SECURITY
+\fBtssh\fR implements several security measures:
+.IP \(bu 4
+Input validation to prevent command injection
+.IP \(bu 4
+JSON structure validation for Tailscale responses
+.IP \(bu 4
+Safe parameter handling using proper separation
+.SH FILES
+.TP
+.I /usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh
+Shared library for hostname resolution (system installation)
+.TP
+.I ~/.config/tailscale-cli-helpers/lib/tailscale-resolver.sh
+Shared library for hostname resolution (user installation)
+.SH EXIT STATUS
+.TP
+.B 0
+Successful connection or hostname resolution
+.TP
+.B 1
+Error in arguments, dependencies, or connection failure
+.SH SEE ALSO
+.BR ssh (1),
+.BR tailscale (1),
+.BR ts (1),
+.BR tscp (1),
+.BR tsftp (1),
+.BR trsync (1),
+.BR tssh_copy_id (1),
+.BR tmussh (1)
+.SH AUTHOR
+Built by Digital Cyber Soft
+.SH BUGS
+Report bugs at https://github.com/DigitalCyberSoft/tailscale-cli-helpers/issues

@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+#
+# tmussh - Tailscale mussh helper
+# mussh with Tailscale hostname resolution
+#
+# Built by Digital Cyber Soft
+
+# Detect shell and set compatibility options
+if [ -n "$ZSH_VERSION" ]; then
+    emulate -L bash
+    setopt BASH_REMATCH
+    setopt KSH_ARRAYS
+fi
+
+# Enable safety features
+set -o pipefail
+IFS=$' \t\n'
+
+# Version
+TMUSSH_VERSION="0.2.1"
+
+# Check dependencies
+if ! command -v mussh >/dev/null 2>&1; then
+    echo "Error: mussh is required but not installed" >&2
+    echo "Install from: https://github.com/DigitalCyberSoft/mussh" >&2
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+fi
+
+# Source the shared resolver library
+if [[ -f "$SCRIPT_DIR/../lib/tailscale-resolver.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/tailscale-resolver.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh"
+else
+    echo "Error: Cannot find tailscale-resolver.sh library" >&2
+    exit 1
+fi
+
+# Show help
+show_tmussh_help() {
+    echo "tmussh - mussh with Tailscale hostname resolution v$TAILSCALE_CLI_HELPERS_VERSION"
+    echo ""
+    echo "Usage:"
+    echo "  tmussh [mussh_options] -h hostname1 hostname2 ..."
+    echo "  tmussh [mussh_options] -h pattern*"
+    echo ""
+    echo "Options:"
+    echo "  --help           Show this help message"
+    echo "  -V, --version    Show version information"
+    echo ""
+    echo "Run commands on multiple Tailscale hosts using mussh."
+    echo "Supports hostname resolution and wildcard patterns."
+}
+
+# Function to expand wildcards to Tailscale hosts
+expand_tailscale_wildcards() {
+    local pattern="$1"
+    
+    # Get all Tailscale hosts
+    local hosts=$(get_all_tailscale_hosts)
+    
+    # Convert shell wildcard to regex
+    local regex_pattern=$(echo "$pattern" | sed 's/\*/.*/')
+    
+    # Filter hosts matching the pattern
+    echo "$hosts" | grep -E "^${regex_pattern}$" | tr '\n' ' '
+}
+
+# Main function
+main() {
+    # Handle version and help early
+    for arg in "$@"; do
+        case "$arg" in
+            --version|-V)
+                echo "tmussh $TAILSCALE_CLI_HELPERS_VERSION"
+                exit 0
+                ;;
+            --help)
+                show_tmussh_help
+                exit 0
+                ;;
+        esac
+    done
+    
+    if [[ $# -eq 0 ]]; then
+        show_tmussh_help
+        exit 1
+    fi
+    
+    local mussh_args=()
+    local host_list=()
+    local i=1
+    
+    # Parse arguments
+    while [[ $i -le $# ]]; do
+        local arg="${!i}"
+        
+        case "$arg" in
+            -h|--hosts)
+                # Host specification
+                ((i++))
+                while [[ $i -le $# ]] && [[ "${!i}" != -* ]]; do
+                    local host_spec="${!i}"
+                    
+                    # Check if it's a wildcard pattern
+                    if [[ "$host_spec" == *"*"* ]]; then
+                        # Expand wildcard against Tailscale hosts
+                        local expanded_hosts=$(expand_tailscale_wildcards "$host_spec")
+                        if [[ -n "$expanded_hosts" ]]; then
+                            host_list+=($expanded_hosts)
+                        fi
+                    else
+                        # Try to resolve individual host
+                        local resolved_host
+                        resolved_host=$(resolve_tailscale_host "$host_spec")
+                        if [[ $? -eq 0 ]]; then
+                            host_list+=("$resolved_host")
+                        else
+                            host_list+=("$host_spec")
+                        fi
+                    fi
+                    ((i++))
+                done
+                ;;
+            -H|--hostfile)
+                # Host file - pass through as-is
+                mussh_args+=("$arg")
+                ((i++))
+                if [[ $i -le $# ]]; then
+                    mussh_args+=("${!i}")
+                    ((i++))
+                fi
+                ;;
+            *)
+                # Other arguments - pass through
+                mussh_args+=("$arg")
+                ((i++))
+                ;;
+        esac
+    done
+    
+    # If we have a host list, add it to mussh args
+    if [[ ${#host_list[@]} -gt 0 ]]; then
+        mussh_args+=("-h" "${host_list[@]}")
+    fi
+    
+    # Execute mussh with resolved arguments
+    exec mussh "${mussh_args[@]}"
+}
+
+# Run main function
+main "$@"
