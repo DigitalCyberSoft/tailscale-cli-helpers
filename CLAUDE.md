@@ -119,5 +119,6 @@ gh release create vX.Y.Z --title "Title" --notes "Notes" package.rpm package.deb
 
 - Only update versions for functional changes
 - Don't version bump for documentation or installation method additions
+- Don't version bump for Homebrew formula updates (just update the .rb file)
 - Always test on both bash and zsh before releasing
 - Include all package types in GitHub releases

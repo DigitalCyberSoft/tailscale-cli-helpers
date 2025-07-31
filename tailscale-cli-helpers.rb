@@ -1,63 +1,81 @@
 class TailscaleCliHelpers < Formula
-  desc "Bash/Zsh functions for easy SSH access to Tailscale nodes"
+  desc "Command-line helpers for Tailscale SSH operations"
   homepage "https://github.com/DigitalCyberSoft/tailscale-cli-helpers"
-  url "https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.2.0.tar.gz"
-  sha256 "03d2b487013b33f4b690455d8435fc6545b05d22736a3b2370d1b96277b56f3a"
+  url "https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.2.3.tar.gz"
+  sha256 "fc9c7d95c5d294a2852edbe2696d3495fdf8b4768fbe74d4e2424be45c6d52d9"
   license "MIT"
 
   depends_on "jq"
   depends_on "tailscale"
+  
+  # Optional dependency - will be used if available
+  uses_from_macos "rsync"
 
   def install
-    # Install scripts to libexec
-    libexec.install "tailscale-ssh-helper.sh"
-    libexec.install "tailscale-functions.sh"
-    libexec.install "tailscale-completion.sh"
-    libexec.install "tailscale-mussh.sh"
-    libexec.install "tailscale-ts-dispatcher.sh"
+    # Install executables
+    bin.install Dir["bin/*"]
+    
+    # Install shared libraries
+    libexec.install "lib/tailscale-resolver.sh"
+    libexec.install "lib/common.sh"
+    
+    # Create wrapper scripts that source the libraries
+    Dir["#{bin}/*"].each do |script|
+      script_name = File.basename(script)
+      next if script_name == "tmussh" && !Formula["mussh"].any_version_installed?
+      
+      inreplace script do |s|
+        # Update library paths to point to libexec
+        s.gsub! '$(dirname "$(realpath "$0")")/../lib/common.sh', "#{libexec}/common.sh"
+        s.gsub! '$(dirname "$(realpath "$0")")/../lib/tailscale-resolver.sh', "#{libexec}/tailscale-resolver.sh"
+      end
+    end
+    
+    # Install man pages
+    man1.install Dir["man/man1/*.1"]
     
     # Install setup script
     libexec.install "setup.sh"
     
     # Install documentation
     doc.install "README.md"
-    doc.install "CLAUDE.md"
+    doc.install "CLAUDE.md" if File.exist?("CLAUDE.md")
+    
+    # Install bash completions
+    bash_completion.install_symlink bin/"ts" => "tailscale-cli-helpers"
+    bash_completion.install_symlink bin/"tssh"
+    bash_completion.install_symlink bin/"tscp"
+    bash_completion.install_symlink bin/"tsftp" if File.exist?("#{bin}/tsftp")
+    bash_completion.install_symlink bin/"trsync" if File.exist?("#{bin}/trsync")
+    bash_completion.install_symlink bin/"tssh_copy_id"
   end
 
   def post_install
-    # Add to shell profile
-    shell_profile = if ENV["SHELL"].include?("zsh")
-                      "#{Dir.home}/.zshrc"
-                    else
-                      "#{Dir.home}/.bash_profile"
-                    end
-    
-    source_line = "source \"#{libexec}/tailscale-ssh-helper.sh\""
-    
-    unless File.read(shell_profile).include?(source_line)
-      File.open(shell_profile, "a") do |f|
-        f.puts ""
-        f.puts "# Tailscale CLI helpers"
-        f.puts source_line
-      end
+    # Check if mussh is available and suggest installing tmussh
+    if Formula["mussh"].any_version_installed? && !File.exist?("#{bin}/tmussh")
+      opoo "mussh is installed. Consider reinstalling tailscale-cli-helpers to enable tmussh command."
     end
   end
 
   def caveats
+    mussh_note = if Formula["mussh"].any_version_installed?
+      "\n      tmussh is available for parallel SSH execution"
+    else
+      "\n      Install mussh to enable tmussh for parallel SSH: brew install mussh"
+    end
+    
     <<~EOS
       Tailscale CLI helpers have been installed.
       
-      To use the 'ts' command and ssh-copy-id enhancements:
-      1. Restart your terminal, or
-      2. Run: source ~/.zshrc (or ~/.bash_profile)
-      
-      Usage:
+      Available commands:
+        ts [hostname]                    # Quick SSH to Tailscale nodes
         tssh hostname                    # SSH to Tailscale host
-        ts hostname                      # SSH via dispatcher (same as tssh)
-        tscp file.txt host:/path/        # Copy files
-        trsync -av dir/ host:/path/      # Sync directories
-        tmussh -h host1 host2 -c "cmd"   # Parallel SSH (requires mussh)
-        ts <TAB>                         # Tab completion
+        tscp file.txt host:/path/        # Copy files (if scp available)
+        tsftp hostname                   # SFTP to Tailscale host (if sftp available)
+        trsync -av dir/ host:/path/      # Sync directories (if rsync available)
+        tssh_copy_id hostname            # Copy SSH keys to Tailscale host#{mussh_note}
+        
+      Tab completion is available for all commands.
         
       Requirements:
         - Tailscale must be installed and running
@@ -66,7 +84,11 @@ class TailscaleCliHelpers < Formula
   end
 
   test do
-    # Test that the main script can be sourced and commands are available
-    system "bash", "-c", "source #{libexec}/tailscale-ssh-helper.sh && type tssh && type ts"
+    # Test that commands are available and show help
+    system "#{bin}/ts", "--help"
+    system "#{bin}/tssh", "--help"
+    
+    # Test version flag
+    assert_match version.to_s, shell_output("#{bin}/ts --version")
   end
 end
