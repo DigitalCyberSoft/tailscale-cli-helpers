@@ -141,26 +141,144 @@ main() {
         exit 1
     fi
     
-    # Try to resolve hostname
-    local resolved_host
-    resolved_host=$(resolve_tailscale_host "$target_host" "$verbose")
+    # ANSI color codes
+    local GREEN='\033[0;32m'
+    local BLUE='\033[0;34m'
+    local YELLOW='\033[0;33m'
+    local RESET='\033[0m'
     
-    if [[ "$resolve_only" == "true" ]]; then
-        if [[ $? -eq 0 ]]; then
-            echo "$resolved_host"
-            exit 0
-        else
-            exit 1
-        fi
+    # Parse user prefix if present
+    local user_prefix=""
+    local search_hostname="$target_host"
+    if [[ "$target_host" == *"@"* ]]; then
+        user_prefix="${target_host%%@*}@"
+        search_hostname="${target_host#*@}"
     fi
     
-    if [[ $? -eq 0 ]]; then
-        [[ "$verbose" == "true" ]] && echo "[DEBUG] Connecting to resolved host: $resolved_host" >&2
-        exec ssh "$resolved_host" "${ssh_args[@]}"
+    # Find all matching hosts
+    local matching_hosts=()
+    local matches
+    matches=$(find_all_matching_hosts "$search_hostname" "$verbose")
+    
+    if [[ -n "$matches" ]]; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && matching_hosts+=("$line")
+        done <<< "$matches"
+    fi
+    
+    # Handle results based on number of matches
+    if [[ ${#matching_hosts[@]} -eq 0 ]]; then
+        # No matches found
+        if [[ "$resolve_only" == "true" ]]; then
+            exit 1
+        fi
+        
+        echo "Host not found in Tailscale network, checking known_hosts..."
+        if [[ -r ~/.ssh/known_hosts ]] && grep -Fq "$search_hostname" ~/.ssh/known_hosts 2>/dev/null; then
+            echo -e "${BLUE}[SSH]${RESET} Found in known_hosts, connecting to ${BLUE}${target_host}${RESET}..."
+            exec ssh "$target_host" "${ssh_args[@]}"
+        else
+            echo "Host not found in known_hosts either" >&2
+            exit 1
+        fi
+    elif [[ ${#matching_hosts[@]} -eq 1 ]]; then
+        # Single match - connect directly
+        local host_info="${matching_hosts[0]}"
+        local ip=$(echo "$host_info" | cut -d ',' -f 1)
+        local real_hostname=$(echo "$host_info" | cut -d ',' -f 2)
+        
+        if [[ "$resolve_only" == "true" ]]; then
+            if is_magicdns_working; then
+                echo "${user_prefix}${real_hostname}"
+            else
+                echo "${user_prefix}${ip}"
+            fi
+            exit 0
+        fi
+        
+        if is_magicdns_working; then
+            echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${real_hostname}${RESET} (${ip})..."
+            exec ssh "${user_prefix}${real_hostname}" "${ssh_args[@]}"
+        else
+            echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${real_hostname}${RESET} (${ip})..."
+            local tailscale_json=$(tailscale status --json 2>/dev/null)
+            if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+                echo "Note: MagicDNS is enabled but resolv.conf is not configured properly. Using IP address."
+            fi
+            exec ssh "${user_prefix}${ip}" "${ssh_args[@]}"
+        fi
     else
-        # Fall back to regular SSH
-        [[ "$verbose" == "true" ]] && echo "[DEBUG] Falling back to regular SSH for: $target_host" >&2
-        exec ssh "$target_host" "${ssh_args[@]}"
+        # Multiple matches - show selection menu
+        echo "Multiple hosts found matching '$search_hostname':"
+        
+        # Sort hosts: online first, then offline
+        local online_hosts=()
+        local offline_hosts=()
+        
+        for host in "${matching_hosts[@]}"; do
+            local host_status=$(echo "$host" | cut -d ',' -f 4)
+            if [[ "$host_status" == "offline" ]]; then
+                offline_hosts+=("$host")
+            else
+                online_hosts+=("$host")
+            fi
+        done
+        
+        local sorted_hosts=("${online_hosts[@]}" "${offline_hosts[@]}")
+        
+        # Display options
+        for i in "${!sorted_hosts[@]}"; do
+            local host_info="${sorted_hosts[$i]}"
+            local host_ip=$(echo "$host_info" | cut -d ',' -f 1)
+            local host_name=$(echo "$host_info" | cut -d ',' -f 2)
+            local host_os=$(echo "$host_info" | cut -d ',' -f 3)
+            local host_status=$(echo "$host_info" | cut -d ',' -f 4)
+            
+            echo -e "${GREEN}[$((i+1))]${RESET} $host_name ($host_ip) - $host_os - $host_status"
+        done
+        
+        # Get selection
+        local selection
+        if [ -t 0 ]; then
+            read -p "Select host number (1-${#sorted_hosts[@]}): " selection
+        else
+            echo "Non-interactive mode, selecting first match"
+            selection=1
+        fi
+        
+        if [ -z "$selection" ]; then
+            selection=1
+        fi
+        
+        if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le "${#sorted_hosts[@]}" ]; then
+            local selected_host="${sorted_hosts[$((selection-1))]}"
+            local selected_ip=$(echo "$selected_host" | cut -d ',' -f 1)
+            local selected_hostname=$(echo "$selected_host" | cut -d ',' -f 2)
+            
+            if [[ "$resolve_only" == "true" ]]; then
+                if is_magicdns_working; then
+                    echo "${user_prefix}${selected_hostname}"
+                else
+                    echo "${user_prefix}${selected_ip}"
+                fi
+                exit 0
+            fi
+            
+            if is_magicdns_working; then
+                echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${selected_hostname}${RESET} (${selected_ip})..."
+                exec ssh "${user_prefix}${selected_hostname}" "${ssh_args[@]}"
+            else
+                echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${selected_hostname}${RESET} (${selected_ip})..."
+                local tailscale_json=$(tailscale status --json 2>/dev/null)
+                if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+                    echo "Note: MagicDNS is enabled but resolv.conf is not configured properly. Using IP address."
+                fi
+                exec ssh "${user_prefix}${selected_ip}" "${ssh_args[@]}"
+            fi
+        else
+            echo "Invalid selection"
+            exit 1
+        fi
     fi
 }
 

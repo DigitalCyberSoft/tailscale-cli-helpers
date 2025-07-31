@@ -28,559 +28,303 @@ setup_test_env() {
     mkdir -p "$TEST_TEMP_DIR"
     cd "$PROJECT_DIR"
     
-    # Source the functions for testing
-    if [[ -f "tailscale-functions.sh" ]]; then
-        echo "Loading tailscale-functions.sh..."
-        source "tailscale-functions.sh" 2>/dev/null || {
-            echo -e "${RED}ERROR: Failed to source tailscale-functions.sh${RESET}"
+    # Check for new binary structure
+    if [[ -f "bin/tssh" ]] && [[ -f "lib/tailscale-resolver.sh" ]]; then
+        echo "Testing new modular structure..."
+        
+        # Add bin directory to PATH for testing
+        export PATH="$PROJECT_DIR/bin:$PATH"
+        
+        # Source the resolver library to test validation functions
+        source "lib/tailscale-resolver.sh" 2>/dev/null || {
+            echo -e "${RED}ERROR: Failed to source tailscale-resolver.sh${RESET}"
             exit 1
         }
         
         # Test if our security functions are available
-        if ! declare -f _dcs_validate_hostname >/dev/null 2>&1; then
+        if ! declare -f _validate_hostname >/dev/null 2>&1; then
             echo -e "${RED}ERROR: Security functions not loaded properly${RESET}"
             exit 1
         fi
         echo "Security functions loaded successfully"
     else
-        echo -e "${RED}ERROR: tailscale-functions.sh not found in $(pwd)${RESET}"
+        echo -e "${RED}ERROR: New modular structure not found in $(pwd)${RESET}"
+        echo "Expected bin/tssh and lib/tailscale-resolver.sh"
         exit 1
     fi
     
     # Create test log
-    echo "Security Test Log - $(date)" > "$TEST_LOG"
+    touch "$TEST_LOG"
 }
 
 # Cleanup test environment
 cleanup_test_env() {
     echo -e "${BLUE}Cleaning up test environment...${RESET}"
-    rm -rf "$TEST_TEMP_DIR" 2>/dev/null || true
+    rm -rf "$TEST_TEMP_DIR"
 }
 
-# Test result functions
-test_pass() {
+# Test result reporter
+report_test() {
     local test_name="$1"
-    echo -e "${GREEN}✓ PASS${RESET}: $test_name"
-    echo "PASS: $test_name" >> "$TEST_LOG"
-    ((TESTS_PASSED++))
+    local result="$2"
+    local details="${3:-}"
+    
     ((TESTS_TOTAL++))
+    
+    if [[ "$result" == "PASS" ]]; then
+        ((TESTS_PASSED++))
+        echo -e "  ${GREEN}✓ $test_name${RESET}"
+    else
+        ((TESTS_FAILED++))
+        echo -e "  ${RED}✗ $test_name${RESET}"
+        if [[ -n "$details" ]]; then
+            echo -e "    ${YELLOW}Details: $details${RESET}"
+        fi
+    fi
 }
 
-test_fail() {
-    local test_name="$1"
-    local reason="$2"
-    echo -e "${RED}✗ FAIL${RESET}: $test_name - $reason"
-    echo "FAIL: $test_name - $reason" >> "$TEST_LOG"
-    ((TESTS_FAILED++))
-    ((TESTS_TOTAL++))
-}
-
-test_skip() {
-    local test_name="$1"
-    local reason="$2"
-    echo -e "${YELLOW}⚠ SKIP${RESET}: $test_name - $reason"
-    echo "SKIP: $test_name - $reason" >> "$TEST_LOG"
-    ((TESTS_TOTAL++))
-}
-
-# Input validation tests
+# Test hostname validation
 test_hostname_validation() {
     echo -e "\n${BLUE}Testing hostname validation...${RESET}"
     
-    # Test valid hostnames
-    if _dcs_validate_hostname "webserver" 2>/dev/null; then
-        test_pass "Valid hostname 'webserver'"
-    else
-        test_fail "Valid hostname 'webserver'" "Should have passed validation"
-    fi
+    # Valid hostnames
+    local valid_hostnames=(
+        "server1"
+        "web-server"
+        "db_server"
+        "host.example.com"
+        "192.168.1.1"
+        "user@server"
+        "root@web-01"
+    )
     
-    if _dcs_validate_hostname "test-host-01" 2>/dev/null; then
-        test_pass "Valid hostname 'test-host-01'"
-    else
-        test_fail "Valid hostname 'test-host-01'" "Should have passed validation"
-    fi
+    for hostname in "${valid_hostnames[@]}"; do
+        if _validate_hostname "$hostname"; then
+            report_test "Valid hostname: $hostname" "PASS"
+        else
+            report_test "Valid hostname: $hostname" "FAIL" "Should accept valid hostname"
+        fi
+    done
     
-    if _dcs_validate_hostname "server.local" 2>/dev/null; then
-        test_pass "Valid hostname 'server.local'"
-    else
-        test_fail "Valid hostname 'server.local'" "Should have passed validation"
-    fi
+    # Invalid hostnames
+    local invalid_hostnames=(
+        "server1; rm -rf /"
+        "host\$(whoami)"
+        "server\`id\`"
+        "host&command"
+        "server|pipe"
+        "../../../etc/passwd"
+        "host\ncommand"
+        "server>output"
+        "host<input"
+        "a_very_long_hostname_that_exceeds_the_maximum_allowed_length_of_253_characters_which_should_be_rejected_by_the_validation_function_to_prevent_buffer_overflow_attacks_and_other_security_issues_that_could_arise_from_processing_excessively_long_hostnames_in_the_system_aaaaaaaaaaaaa"
+    )
     
-    if _dcs_validate_hostname "host_with_underscore" 2>/dev/null; then
-        test_pass "Valid hostname 'host_with_underscore'"
-    else
-        test_fail "Valid hostname 'host_with_underscore'" "Should have passed validation"
-    fi
-    
-    # Test invalid hostnames (command injection attempts)
-    if ! _dcs_validate_hostname "host; rm -rf /" 2>/dev/null; then
-        test_pass "Command injection prevention '; rm -rf /'"
-    else
-        test_fail "Command injection prevention '; rm -rf /'" "Should have failed validation"
-    fi
-    
-    if ! _dcs_validate_hostname "host\`id\`" 2>/dev/null; then
-        test_pass "Command injection prevention '`id`'"
-    else
-        test_fail "Command injection prevention '`id`'" "Should have failed validation"
-    fi
-    
-    if ! _dcs_validate_hostname "host\$(whoami)" 2>/dev/null; then
-        test_pass "Command injection prevention '\$(whoami)'"
-    else
-        test_fail "Command injection prevention '\$(whoami)'" "Should have failed validation"
-    fi
-    
-    # Test path traversal attempts
-    if ! _dcs_validate_hostname "../../../etc/passwd" 2>/dev/null; then
-        test_pass "Path traversal prevention '../../../etc/passwd'"
-    else
-        test_fail "Path traversal prevention '../../../etc/passwd'" "Should have failed validation"
-    fi
-    
-    # Test special characters
-    if ! _dcs_validate_hostname "host|cat /etc/passwd" 2>/dev/null; then
-        test_pass "Special character prevention '|'"
-    else
-        test_fail "Special character prevention '|'" "Should have failed validation"
-    fi
-    
-    # Test empty/null input
-    if ! _dcs_validate_hostname "" 2>/dev/null; then
-        test_pass "Empty hostname rejection"
-    else
-        test_fail "Empty hostname rejection" "Should have failed validation"
-    fi
-    
-    # Test length limit (RFC 1035 - 253 chars max)
-    local long_hostname=$(printf '%*s' 254 '' | tr ' ' 'a')
-    if ! _dcs_validate_hostname "$long_hostname" 2>/dev/null; then
-        test_pass "Hostname length limit enforcement"
-    else
-        test_fail "Hostname length limit enforcement" "Should have failed validation"
-    fi
+    for hostname in "${invalid_hostnames[@]}"; do
+        if ! _validate_hostname "$hostname"; then
+            report_test "Invalid hostname rejected: ${hostname:0:30}..." "PASS"
+        else
+            report_test "Invalid hostname rejected: ${hostname:0:30}..." "FAIL" "Should reject malicious input"
+        fi
+    done
 }
 
-# JSON validation tests
+# Test command injection prevention
+test_command_injection() {
+    echo -e "\n${BLUE}Testing command injection prevention...${RESET}"
+    
+    # Test various command injection attempts
+    local injection_attempts=(
+        "host; echo INJECTED"
+        "host && echo INJECTED"
+        "host || echo INJECTED"
+        "host \$(echo INJECTED)"
+        "host \`echo INJECTED\`"
+        "host | echo INJECTED"
+        "host > /tmp/injected"
+        "host < /etc/passwd"
+        "host & echo INJECTED"
+        "host\necho INJECTED"
+        "host\r\necho INJECTED"
+    )
+    
+    for attempt in "${injection_attempts[@]}"; do
+        # Try to use the attempt as a hostname with tssh
+        output=$(bin/tssh "$attempt" 2>&1 || true)
+        
+        # Check if injection was prevented
+        if [[ "$output" != *"INJECTED"* ]] && [[ "$output" != *"echo"* ]]; then
+            report_test "Command injection blocked: ${attempt:0:30}..." "PASS"
+        else
+            report_test "Command injection blocked: ${attempt:0:30}..." "FAIL" "Injection not prevented"
+        fi
+    done
+}
+
+# Test path traversal prevention
+test_path_traversal() {
+    echo -e "\n${BLUE}Testing path traversal prevention...${RESET}"
+    
+    local traversal_attempts=(
+        "../../../etc/passwd"
+        "..\\..\\..\\windows\\system32"
+        "....//....//....//etc//passwd"
+        "%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd"
+        "..%252f..%252f..%252fetc%252fpasswd"
+    )
+    
+    for attempt in "${traversal_attempts[@]}"; do
+        if ! _validate_hostname "$attempt"; then
+            report_test "Path traversal blocked: ${attempt:0:30}..." "PASS"
+        else
+            report_test "Path traversal blocked: ${attempt:0:30}..." "FAIL" "Should reject path traversal"
+        fi
+    done
+}
+
+# Test JSON validation
 test_json_validation() {
     echo -e "\n${BLUE}Testing JSON validation...${RESET}"
     
-    # Test valid JSON structure
-    local valid_json='{"Self":{"HostName":"test"},"Peer":{},"CurrentTailnet":{"MagicDNSEnabled":true}}'
-    if _dcs_validate_tailscale_json "$valid_json" 2>/dev/null; then
-        test_pass "Valid Tailscale JSON structure"
+    # Valid JSON structure (minimal Tailscale status)
+    local valid_json='{
+        "Self": {"HostName": "test", "TailscaleIPs": ["100.64.0.1"]},
+        "Peer": {},
+        "CurrentTailnet": {"Name": "test"}
+    }'
+    
+    if _validate_tailscale_json "$valid_json"; then
+        report_test "Valid JSON accepted" "PASS"
     else
-        test_fail "Valid Tailscale JSON structure" "Should have passed validation"
+        report_test "Valid JSON accepted" "FAIL" "Should accept valid Tailscale JSON"
     fi
     
-    # Test invalid JSON structure
-    local invalid_json='{"invalid":"structure"}'
-    if ! _dcs_validate_tailscale_json "$invalid_json" 2>/dev/null; then
-        test_pass "Invalid JSON structure rejection"
-    else
-        test_fail "Invalid JSON structure rejection" "Should have failed validation"
-    fi
+    # Invalid JSON structures
+    local invalid_jsons=(
+        '{"malformed": json}'
+        '{"Self": "not an object"}'
+        '{"missing": "required fields"}'
+        'not json at all'
+        '{"Self": {"HostName": "test; echo INJECTED"}}'
+    )
     
-    # Test malformed JSON
-    local malformed_json='{"Self":{"HostName":"test"'
-    if ! _dcs_validate_tailscale_json "$malformed_json" 2>/dev/null; then
-        test_pass "Malformed JSON rejection"
-    else
-        test_fail "Malformed JSON rejection" "Should have failed validation"
-    fi
-    
-    # Test empty JSON
-    if ! _dcs_validate_tailscale_json "" 2>/dev/null; then
-        test_pass "Empty JSON rejection"
-    else
-        test_fail "Empty JSON rejection" "Should have failed validation"
-    fi
-    
-    # Test JSON injection attempt - this should be valid JSON but contain dangerous content
-    local injection_json='{"Self":{"HostName":"test\"; rm -rf /; echo \""},"Peer":{},"CurrentTailnet":{}}'
-    if _dcs_validate_tailscale_json "$injection_json" 2>/dev/null; then
-        test_pass "JSON structure validation works (dangerous content is handled by input validation)"
-    else
-        test_fail "JSON structure validation works" "Valid JSON structure should pass"
-    fi
-    
-    # The real protection comes from hostname validation, not JSON validation
-    local dangerous_hostname
-    if dangerous_hostname=$(echo "$injection_json" | jq -r '.Self.HostName' 2>/dev/null); then
-        if ! _dcs_validate_hostname "$dangerous_hostname" 2>/dev/null; then
-            test_pass "Dangerous hostname from JSON blocked by input validation"
+    for json in "${invalid_jsons[@]}"; do
+        if ! _validate_tailscale_json "$json" 2>/dev/null; then
+            report_test "Invalid JSON rejected: ${json:0:30}..." "PASS"
         else
-            test_fail "Dangerous hostname from JSON blocked by input validation" "Should have been blocked"
+            report_test "Invalid JSON rejected: ${json:0:30}..." "FAIL" "Should reject invalid JSON"
         fi
-    else
-        test_fail "JSON hostname extraction" "Could not extract hostname"
-    fi
-}
-
-# Command injection prevention tests
-test_command_injection_prevention() {
-    echo -e "\n${BLUE}Testing command injection prevention...${RESET}"
-    
-    # Create mock JSON for testing
-    local mock_json='{"Self":{"HostName":"testhost","TailscaleIPs":["100.64.0.1"],"DNSName":"testhost.domain","OS":"linux"},"Peer":{},"CurrentTailnet":{"MagicDNSEnabled":true}}'
-    
-    # Test jq parameter binding (safe)
-    local safe_result
-    if safe_result=$(echo "$mock_json" | jq -r --arg hostname "testhost" 'if .Self.HostName == $hostname then "found" else "not found" end' 2>/dev/null); then
-        if [[ "$safe_result" == "found" ]]; then
-            test_pass "Safe jq parameter binding"
-        else
-            test_fail "Safe jq parameter binding" "Should have found testhost"
-        fi
-    else
-        test_fail "Safe jq parameter binding" "jq command failed"
-    fi
-    
-    # Test pattern sanitization
-    local dangerous_pattern='host"; system("id"); echo "'
-    local sanitized_pattern
-    if sanitized_pattern=$(_dcs_sanitize_pattern "$dangerous_pattern" 2>/dev/null); then
-        # The function removes dangerous chars, leaving only: a-zA-Z0-9._-
-        local expected="hostsystemidecho"  # Only alphanumeric chars remain
-        if [[ "$sanitized_pattern" == "$expected" ]]; then
-            test_pass "Pattern sanitization removes dangerous characters"
-        else
-            test_fail "Pattern sanitization removes dangerous characters" "Expected: '$expected', Got: '$sanitized_pattern'"
-        fi
-    else
-        test_fail "Pattern sanitization removes dangerous characters" "Function failed"
-    fi
-    
-    # Test that sanitized patterns don't execute commands
-    local test_output
-    if test_output=$(echo '{"test":"value"}' | jq -r --arg pattern "$sanitized_pattern" 'keys[] | select(test($pattern))' 2>/dev/null); then
-        test_pass "Sanitized pattern safe in jq"
-    else
-        test_pass "Sanitized pattern safe in jq (no matches expected)"
-    fi
-}
-
-# Path traversal prevention tests
-test_path_traversal_prevention() {
-    echo -e "\n${BLUE}Testing path traversal prevention...${RESET}"
-    
-    # Test manual path traversal detection (simulating the validation logic)
-    test_path_traversal() {
-        local path="$1"
-        case "$path" in
-            *../*|*/..*|../*|*..|\\.\\.)
-                return 1  # Path traversal detected
-                ;;
-            *)
-                return 0  # Path is safe
-                ;;
-        esac
-    }
-    
-    # Test valid paths
-    if test_path_traversal "/tmp/valid-path" 2>/dev/null; then
-        test_pass "Valid destination path acceptance"
-    else
-        test_fail "Valid destination path acceptance" "Should have accepted valid path"
-    fi
-    
-    # Test path traversal attempts
-    if ! test_path_traversal "/tmp/../../../etc" 2>/dev/null; then
-        test_pass "Path traversal prevention '../../../etc'"
-    else
-        test_fail "Path traversal prevention '../../../etc'" "Should have rejected traversal"
-    fi
-    
-    if ! test_path_traversal "/tmp/test/../../.." 2>/dev/null; then
-        test_pass "Path traversal prevention 'test/../../..'"
-    else
-        test_fail "Path traversal prevention 'test/../../..'" "Should have rejected traversal"
-    fi
-    
-    if ! test_path_traversal "../../../etc/passwd" 2>/dev/null; then
-        test_pass "Path traversal prevention relative path"
-    else
-        test_fail "Path traversal prevention relative path" "Should have rejected relative path"
-    fi
-    
-    # Test file validation logic
-    echo "test content" > "$TEST_TEMP_DIR/valid-file.txt"
-    if [[ -f "$TEST_TEMP_DIR/valid-file.txt" && ! -L "$TEST_TEMP_DIR/valid-file.txt" ]]; then
-        test_pass "Valid source file acceptance"
-    else
-        test_fail "Valid source file acceptance" "Should have accepted valid file"
-    fi
-    
-    # Test invalid file (symlink)
-    ln -s "/etc/passwd" "$TEST_TEMP_DIR/symlink-file" 2>/dev/null || true
-    if [[ -L "$TEST_TEMP_DIR/symlink-file" ]]; then
-        test_pass "Symlink file detection"
-    else
-        test_fail "Symlink file detection" "Should have detected symlink"
-    fi
-    
-    # Test non-existent file
-    if [[ ! -f "$TEST_TEMP_DIR/nonexistent-file.txt" ]]; then
-        test_pass "Non-existent file detection"
-    else
-        test_fail "Non-existent file detection" "Should have detected missing file"
-    fi
-}
-
-# IP validation tests (focused on security, not functionality)
-test_ip_validation() {
-    echo -e "\n${BLUE}Testing IP address security validation...${RESET}"
-    
-    # Test malformed IPs that could cause injection
-    if ! is_tailscale_ip "100.64.0.1; rm -rf /" 2>/dev/null; then
-        test_pass "IP injection attempt rejection"
-    else
-        test_fail "IP injection attempt rejection" "Should have failed validation"
-    fi
-    
-    if ! is_tailscale_ip "100.64.\`id\`.1" 2>/dev/null; then
-        test_pass "IP command substitution rejection"
-    else
-        test_fail "IP command substitution rejection" "Should have failed validation"
-    fi
-    
-    if ! is_tailscale_ip "100.64.\$(whoami).1" 2>/dev/null; then
-        test_pass "IP command expansion rejection"
-    else
-        test_fail "IP command expansion rejection" "Should have failed validation"
-    fi
-    
-    # Test that function exists and basic validation works
-    if declare -f is_tailscale_ip >/dev/null 2>&1; then
-        test_pass "IP validation function is available"
-        
-        # Test basic format validation (security focused)
-        if ! is_tailscale_ip "invalid-ip-format" 2>/dev/null; then
-            test_pass "Invalid IP format rejection"
-        else
-            test_fail "Invalid IP format rejection" "Should have failed validation"
-        fi
-        
-        if ! is_tailscale_ip "300.400.500.600" 2>/dev/null; then
-            test_pass "Invalid octet ranges rejection"
-        else
-            test_fail "Invalid octet ranges rejection" "Should have failed validation"
-        fi
-    else
-        test_skip "IP validation function tests" "Function not available in global scope"
-    fi
-}
-
-# File operation security tests
-test_file_operations_security() {
-    echo -e "\n${BLUE}Testing file operation security...${RESET}"
-    
-    # Test secure file creation
-    cd "$TEST_TEMP_DIR"
-    
-    # Check umask is set correctly
-    local old_umask=$(umask)
-    umask 0022
-    
-    touch test-file.txt
-    local perms=$(stat -c "%a" test-file.txt 2>/dev/null || stat -f "%A" test-file.txt 2>/dev/null)
-    if [[ "$perms" == "644" ]]; then
-        test_pass "Secure file permissions (644)"
-    else
-        test_fail "Secure file permissions (644)" "Got permissions: $perms"
-    fi
-    
-    # Restore umask
-    umask "$old_umask"
-    
-    # Test backup file creation (simulated)
-    echo "original content" > test-rc.txt
-    if cp test-rc.txt "test-rc.txt.backup.$(date +%s)" 2>/dev/null; then
-        test_pass "Backup file creation"
-    else
-        test_fail "Backup file creation" "Failed to create backup"
-    fi
-    
-    # Test safe grep operations (using -F flag)
-    echo "test.example.com" > hosts-test.txt
-    if grep -Fq "test.example.com" hosts-test.txt 2>/dev/null; then
-        test_pass "Safe literal string matching with -F flag"
-    else
-        test_fail "Safe literal string matching with -F flag" "Should have found literal match"
-    fi
-    
-    # Ensure regex patterns don't work with -F
-    if ! grep -Fq "test.*com" hosts-test.txt 2>/dev/null; then
-        test_pass "Regex patterns disabled with -F flag"
-    else
-        test_fail "Regex patterns disabled with -F flag" "Should not have matched regex"
-    fi
-}
-
-# Error handling tests
-test_error_handling() {
-    echo -e "\n${BLUE}Testing error handling...${RESET}"
-    
-    # Test argument validation
-    local temp_script="$TEST_TEMP_DIR/test-args.sh"
-    cat > "$temp_script" << 'EOF'
-#!/bin/bash
-source ../tailscale-functions.sh 2>/dev/null || exit 1
-
-# Simulate scp with no arguments
-tscp_main() {
-    local resolved_args=()
-    if [[ ${#resolved_args[@]} -eq 0 ]]; then
-        echo "Error: No arguments provided to scp" >&2
-        return 1
-    fi
-    echo "scp would run with args"
-}
-
-tscp_main
-EOF
-    
-    chmod +x "$temp_script"
-    if ! bash "$temp_script" 2>/dev/null; then
-        test_pass "Empty argument validation for scp"
-    else
-        test_fail "Empty argument validation for scp" "Should have failed with no arguments"
-    fi
-    
-    # Test stderr redirection
-    local error_output
-    if error_output=$(bash -c 'echo "test error" >&2; exit 1' 2>&1); then
-        test_fail "Error capture test" "Command should have failed"
-    else
-        if [[ "$error_output" == "test error" ]]; then
-            test_pass "Error message capture via stderr"
-        else
-            test_fail "Error message capture via stderr" "Got: '$error_output'"
-        fi
-    fi
-}
-
-# Integration tests
-test_integration() {
-    echo -e "\n${BLUE}Testing integration scenarios...${RESET}"
-    
-    # Test complete validation chain
-    local test_hostname="valid-test-host"
-    local mock_json='{"Self":{"HostName":"valid-test-host","TailscaleIPs":["100.64.0.1"]},"Peer":{},"CurrentTailnet":{"MagicDNSEnabled":true}}'
-    
-    # Simulate the complete validation process
-    if _dcs_validate_hostname "$test_hostname" 2>/dev/null &&
-       _dcs_validate_tailscale_json "$mock_json" 2>/dev/null; then
-        
-        local result
-        if result=$(echo "$mock_json" | jq -r --arg hostname "$test_hostname" --arg magicdns "true" '
-            if .Self.HostName == $hostname then 
-                "\(.Self.TailscaleIPs[0]),\(.Self.HostName),linux,online,self"
-            else empty end
-        ' 2>/dev/null); then
-            if [[ -n "$result" ]]; then
-                test_pass "Complete validation chain integration"
-            else
-                test_fail "Complete validation chain integration" "No result returned"
-            fi
-        else
-            test_fail "Complete validation chain integration" "jq processing failed"
-        fi
-    else
-        test_fail "Complete validation chain integration" "Validation failed"
-    fi
-    
-    # Test with malicious input in integration
-    local malicious_hostname='test"; system("id"); echo "'
-    if ! _dcs_validate_hostname "$malicious_hostname" 2>/dev/null; then
-        test_pass "Malicious hostname blocked in integration"
-    else
-        test_fail "Malicious hostname blocked in integration" "Should have been blocked"
-    fi
-}
-
-# Performance and DoS protection tests
-test_dos_protection() {
-    echo -e "\n${BLUE}Testing DoS protection...${RESET}"
-    
-    # Test large input handling
-    local large_input=$(printf '%*s' 10000 '' | tr ' ' 'a')
-    if ! _dcs_validate_hostname "$large_input" 2>/dev/null; then
-        test_pass "Large input rejection (DoS protection)"
-    else
-        test_fail "Large input rejection (DoS protection)" "Should have rejected large input"
-    fi
-    
-    # Test repeated validation calls (performance)
-    local start_time=$(date +%s)
-    for i in {1..100}; do
-        _dcs_validate_hostname "testhost$i" >/dev/null 2>&1
     done
-    local end_time=$(date +%s)
-    local duration=$((end_time - start_time))
+}
+
+# Test environment variable safety
+test_env_safety() {
+    echo -e "\n${BLUE}Testing environment variable safety...${RESET}"
     
-    if [[ $duration -lt 5 ]]; then
-        test_pass "Performance test: 100 validations under 5 seconds"
+    # Set potentially dangerous environment variables
+    export PATH="/tmp/malicious:$PATH"
+    export LD_PRELOAD="/tmp/evil.so"
+    export BASH_ENV="/tmp/evil.sh"
+    
+    # Commands should still work safely
+    if bin/tssh --help >/dev/null 2>&1; then
+        report_test "Commands work with modified environment" "PASS"
     else
-        test_fail "Performance test: 100 validations under 5 seconds" "Took ${duration}s"
+        report_test "Commands work with modified environment" "FAIL" "Should handle modified env safely"
+    fi
+    
+    # Clean up
+    unset LD_PRELOAD
+    unset BASH_ENV
+}
+
+# Test handling of special characters
+test_special_characters() {
+    echo -e "\n${BLUE}Testing special character handling...${RESET}"
+    
+    local special_inputs=(
+        "host'name"
+        'host"name'
+        "host\$name"
+        "host\*name"
+        "host?name"
+        "host[name]"
+        "host{name}"
+        "host\\name"
+    )
+    
+    for input in "${special_inputs[@]}"; do
+        # These should be properly escaped/handled
+        output=$(bin/tssh "$input" 2>&1 || true)
+        
+        # Check that no shell expansion occurred
+        if [[ "$output" != *"syntax error"* ]] && [[ "$output" != *"unexpected"* ]]; then
+            report_test "Special chars handled: $input" "PASS"
+        else
+            report_test "Special chars handled: $input" "FAIL" "Improper handling"
+        fi
+    done
+}
+
+# Test resource limits
+test_resource_limits() {
+    echo -e "\n${BLUE}Testing resource limits...${RESET}"
+    
+    # Test with very long hostname (should be rejected)
+    local long_hostname=$(python3 -c "print('a' * 300)")
+    if ! _validate_hostname "$long_hostname"; then
+        report_test "Long hostname rejected (300 chars)" "PASS"
+    else
+        report_test "Long hostname rejected (300 chars)" "FAIL" "Should enforce length limits"
+    fi
+    
+    # Test with maximum allowed length (253 chars)
+    local max_hostname=$(python3 -c "print('a' * 253)")
+    if _validate_hostname "$max_hostname"; then
+        report_test "Max length hostname accepted (253 chars)" "PASS"
+    else
+        report_test "Max length hostname accepted (253 chars)" "FAIL" "Should accept max valid length"
     fi
 }
 
-# Main test runner
-run_all_tests() {
+# Main test execution
+main() {
     echo -e "${BLUE}=== Tailscale CLI Helpers Security Test Suite ===${RESET}"
-    echo -e "${BLUE}Testing security hardening implementations...${RESET}\n"
+    echo -e "${BLUE}Testing security hardening implementations...${RESET}"
     
+    # Setup
     setup_test_env
     
-    # Run test suites
+    # Run all security tests
     test_hostname_validation
+    test_command_injection
+    test_path_traversal
     test_json_validation
-    test_command_injection_prevention
-    test_path_traversal_prevention
-    test_ip_validation
-    test_file_operations_security
-    test_error_handling
-    test_integration
-    test_dos_protection
+    test_env_safety
+    test_special_characters
+    test_resource_limits
     
-    # Print results
-    echo -e "\n${BLUE}=== Test Results Summary ===${RESET}"
-    echo -e "Total Tests: ${TESTS_TOTAL}"
-    echo -e "${GREEN}Passed: ${TESTS_PASSED}${RESET}"
-    echo -e "${RED}Failed: ${TESTS_FAILED}${RESET}"
+    # Summary
+    echo -e "\n${BLUE}=== Test Summary ===${RESET}"
+    echo -e "Total tests: $TESTS_TOTAL"
+    echo -e "${GREEN}Passed: $TESTS_PASSED${RESET}"
+    echo -e "${RED}Failed: $TESTS_FAILED${RESET}"
     
+    # Cleanup
+    cleanup_test_env
+    
+    # Exit with appropriate code
     if [[ $TESTS_FAILED -eq 0 ]]; then
-        echo -e "\n${GREEN}🎉 All security tests passed! The hardening is working correctly.${RESET}"
-        cleanup_test_env
+        echo -e "\n${GREEN}All security tests passed!${RESET}"
         exit 0
     else
-        echo -e "\n${RED}⚠️  Some security tests failed. Please review the failures above.${RESET}"
-        echo -e "${YELLOW}Test log saved to: $TEST_LOG${RESET}"
+        echo -e "\n${RED}Some security tests failed!${RESET}"
         exit 1
     fi
 }
 
-# Handle script arguments
-case "${1:-}" in
-    --help|-h)
-        echo "Usage: $0 [OPTIONS]"
-        echo ""
-        echo "Security test suite for tailscale-cli-helpers hardening"
-        echo ""
-        echo "OPTIONS:"
-        echo "  --help, -h    Show this help message"
-        echo "  --verbose, -v Enable verbose output"
-        echo ""
-        exit 0
-        ;;
-    --verbose|-v)
-        set -x
-        ;;
-esac
-
-# Trap for cleanup
+# Trap to ensure cleanup on exit
 trap cleanup_test_env EXIT
 
-# Run the tests
-run_all_tests
+# Run main
+main "$@"

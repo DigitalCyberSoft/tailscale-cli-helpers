@@ -33,67 +33,8 @@ override_dh_auto_install:
 	# Install setup script
 	install -m 755 setup.sh debian/tailscale-cli-helpers/usr/bin/tailscale-cli-helpers-setup
 	
-	# Create bash completion configuration
-	cat > debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers <<-'EOF'
-	# Bash completion for tailscale-cli-helpers
-	
-	# ts command dispatcher
-	_ts_completion() {
-	    local cur=$${COMP_WORDS[COMP_CWORD]}
-	    if [[ $$COMP_CWORD -eq 1 ]]; then
-	        # Complete with available subcommands and hostnames
-	        local subcommands="ssh scp sftp rsync ssh_copy_id mussh help"
-	        local hosts=$$(tailscale status --json 2>/dev/null | jq -r '.Peer[]?.HostName | select(. != null)' 2>/dev/null)
-	        COMPREPLY=($$(compgen -W "$$subcommands $$hosts" -- "$$cur"))
-	    else
-	        # Delegate to specific command completion
-	        local cmd=$${COMP_WORDS[1]}
-	        case $$cmd in
-	            ssh|scp|sftp|rsync|ssh_copy_id)
-	                # Complete with hostnames
-	                local hosts=$$(tailscale status --json 2>/dev/null | jq -r '.Peer[]?.HostName | select(. != null)' 2>/dev/null)
-	                COMPREPLY=($$(compgen -W "$$hosts" -- "$$cur"))
-	                ;;
-	        esac
-	    fi
-	}
-	
-	# Individual command completions
-	_tssh_completion() {
-	    local cur=$${COMP_WORDS[COMP_CWORD]}
-	    local hosts=$$(tailscale status --json 2>/dev/null | jq -r '.Peer[]?.HostName | select(. != null)' 2>/dev/null)
-	    COMPREPLY=($$(compgen -W "$$hosts" -- "$$cur"))
-	}
-	
-	_tscp_completion() {
-	    local cur=$${COMP_WORDS[COMP_CWORD]}
-	    if [[ "$$cur" == *:* ]]; then
-	        # Complete remote path after hostname:
-	        return
-	    else
-	        # Complete with hostnames
-	        local hosts=$$(tailscale status --json 2>/dev/null | jq -r '.Peer[]?.HostName | select(. != null)' 2>/dev/null)
-	        COMPREPLY=($$(compgen -W "$$hosts" -- "$$cur"))
-	    fi
-	}
-	
-	_trsync_completion() {
-	    local cur=$${COMP_WORDS[COMP_CWORD]}
-	    if [[ "$$cur" == -* ]]; then
-	        COMPREPLY=($$(compgen -W "-v -a -r -z --delete --exclude --dry-run" -- "$$cur"))
-	    else
-	        _tscp_completion
-	    fi
-	}
-	
-	# Register completions
-	complete -F _ts_completion ts
-	complete -F _tssh_completion tssh
-	complete -F _tscp_completion tscp
-	complete -F _tssh_completion tsftp
-	complete -F _trsync_completion trsync
-	complete -F _tssh_completion tssh_copy_id
-	EOF
+	# Install bash completion
+	install -m 644 tailscale-completion.sh debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
 	
 	# Install documentation
 	install -m 644 README.md debian/tailscale-cli-helpers/usr/share/doc/tailscale-cli-helpers/

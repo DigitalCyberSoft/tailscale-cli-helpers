@@ -65,14 +65,22 @@ show_tmussh_help() {
 expand_tailscale_wildcards() {
     local pattern="$1"
     
-    # Get all Tailscale hosts
-    local hosts=$(get_all_tailscale_hosts)
+    # Use the shared function for multi-host pattern matching
+    local matches=$(find_multiple_hosts_matching "$pattern")
     
-    # Convert shell wildcard to regex
-    local regex_pattern=$(echo "$pattern" | sed 's/\*/.*/')
-    
-    # Filter hosts matching the pattern
-    echo "$hosts" | grep -E "^${regex_pattern}$" | tr '\n' ' '
+    if [[ -n "$matches" ]]; then
+        # Extract hostnames and return space-separated list
+        local hostnames=()
+        while IFS= read -r match; do
+            if [[ -n "$match" ]]; then
+                local hostname=$(echo "$match" | cut -d',' -f2)
+                hostnames+=("$hostname")
+            fi
+        done <<< "$matches"
+        
+        # Return space-separated list
+        echo "${hostnames[@]}"
+    fi
 }
 
 # Main function

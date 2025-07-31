@@ -21,6 +21,13 @@ _validate_tailscale_json() {
     echo "$json" | jq -e '.Self and .Peer and .CurrentTailnet' >/dev/null 2>&1
 }
 
+# Security: Sanitize pattern for safe regex use
+_sanitize_pattern() {
+    local pattern="$1"
+    # Remove any potentially dangerous characters for regex patterns
+    echo "$pattern" | sed 's/[^a-zA-Z0-9._-]//g'
+}
+
 # Levenshtein distance calculation
 _levenshtein() {
     local str1="$1"
@@ -172,6 +179,170 @@ resolve_tailscale_host() {
     
     [[ "$verbose" == "true" ]] && echo "[DEBUG] Host not found in Tailscale network" >&2
     return 1
+}
+
+# Check if MagicDNS is working (has proper resolv.conf entry)
+is_magicdns_working() {
+    # Check if MagicDNS is enabled first
+    local tailscale_json
+    tailscale_json=$(tailscale status --json 2>/dev/null) || return 1
+    
+    local magicdns_enabled="false"
+    if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+        magicdns_enabled="true"
+    fi
+    
+    [[ "$magicdns_enabled" != "true" ]] && return 1
+    
+    # Check if resolv.conf has Tailscale nameserver
+    if [[ -r /etc/resolv.conf ]]; then
+        grep -q "^nameserver 100\.100\.100\.100" /etc/resolv.conf 2>/dev/null
+    else
+        return 1
+    fi
+}
+
+# Find all hosts matching a pattern
+find_all_matching_hosts() {
+    local search_hostname="$1"
+    local verbose="${2:-false}"
+    
+    # Security: Validate hostname
+    _validate_hostname "$search_hostname" || {
+        [[ "$verbose" == "true" ]] && echo "[DEBUG] Invalid hostname format: $search_hostname" >&2
+        return 1
+    }
+    
+    # Handle user@host format
+    local hostname_only="$search_hostname"
+    if [[ "$search_hostname" == *"@"* ]]; then
+        hostname_only="${search_hostname#*@}"
+    fi
+    
+    # Get Tailscale status
+    local tailscale_json
+    tailscale_json=$(tailscale status --json 2>/dev/null) || {
+        [[ "$verbose" == "true" ]] && echo "[DEBUG] Failed to get Tailscale status" >&2
+        return 1
+    }
+    
+    # Validate JSON
+    _validate_tailscale_json "$tailscale_json" || {
+        [[ "$verbose" == "true" ]] && echo "[DEBUG] Invalid Tailscale JSON response" >&2
+        return 1
+    }
+    
+    # Get MagicDNS status
+    local magicdns_enabled="false"
+    if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+        magicdns_enabled="true"
+    fi
+    
+    # Find all matching hosts (case-insensitive)
+    local matches=$(echo "$tailscale_json" | jq -r --arg pattern "$hostname_only" --arg magicdns "$magicdns_enabled" '
+        # Check Self host
+        (if (.Self.HostName | ascii_downcase | contains($pattern | ascii_downcase)) then 
+            "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
+        else empty end),
+        # Check Peer hosts
+        (.Peer | to_entries[] | .value | 
+            if (.HostName | ascii_downcase | contains($pattern | ascii_downcase)) then
+                "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
+            else empty end
+        )
+    ' 2>/dev/null)
+    
+    # If no matches with contains, try exact match
+    if [[ -z "$matches" ]]; then
+        matches=$(echo "$tailscale_json" | jq -r --arg hostname "$hostname_only" --arg magicdns "$magicdns_enabled" '
+            # Check Self host
+            (if .Self.HostName == $hostname then 
+                "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
+            else empty end),
+            # Check Peer hosts
+            (.Peer | to_entries[] | .value | 
+                if .HostName == $hostname then
+                    "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
+                else empty end
+            )
+        ' 2>/dev/null)
+    fi
+    
+    # Output all matches with Levenshtein distance sorting
+    if [[ -n "$matches" ]]; then
+        local sorted_matches=()
+        while IFS= read -r match; do
+            if [[ -n "$match" ]]; then
+                local match_hostname=$(echo "$match" | cut -d',' -f2)
+                local distance=$(_levenshtein "$hostname_only" "$match_hostname")
+                sorted_matches+=("$distance:$match")
+            fi
+        done <<< "$matches"
+        
+        # Sort by distance
+        IFS=$'\n' sorted_matches=($(sort -n <<< "${sorted_matches[*]}"))
+        
+        # Output sorted matches without distance
+        for entry in "${sorted_matches[@]}"; do
+            echo "${entry#*:}"
+        done
+    fi
+    
+    return 0
+}
+
+# Multi-host pattern matching function for commands like mussh that need wildcard support
+# Returns newline-separated list of "ip,hostname,os,status" entries
+find_multiple_hosts_matching() {
+    local search_pattern="$1"
+    local verbose="${2:-false}"
+    
+    # Basic validation
+    if [[ -z "$search_pattern" ]]; then
+        return 1
+    fi
+    
+    # Get Tailscale status
+    local tailscale_json
+    tailscale_json=$(tailscale status --json 2>/dev/null) || {
+        [[ "$verbose" == "true" ]] && echo "[DEBUG] Failed to get Tailscale status" >&2
+        return 1
+    }
+    
+    # Validate JSON
+    _validate_tailscale_json "$tailscale_json" || {
+        [[ "$verbose" == "true" ]] && echo "[DEBUG] Invalid Tailscale JSON response" >&2
+        return 1
+    }
+    
+    # Get MagicDNS status
+    local magicdns_enabled="false"
+    if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+        magicdns_enabled="true"
+    fi
+    
+    # Convert shell wildcard pattern to regex pattern
+    local regex_pattern="${search_pattern//\*/.*}"
+    
+    # Use jq to find matching hosts - allow more permissive pattern matching for multi-host commands
+    echo "$tailscale_json" | jq -r --arg pattern "$regex_pattern" --arg magicdns "$magicdns_enabled" '
+        # Extract Self host if it matches
+        (if (.Self.HostName | test($pattern)) then 
+            "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
+        else empty end),
+        # Extract matching Peer hosts  
+        (.Peer | to_entries[] | .value | 
+            if (.HostName | test($pattern)) then
+                "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
+            else empty end
+        )
+    ' 2>/dev/null || {
+        # Fallback: try basic pattern matching without regex
+        echo "$tailscale_json" | jq -r --arg pattern "$search_pattern" '
+            # Simple fallback - check if hostname contains the pattern (without wildcards)
+            (.Self.HostName), (.Peer | to_entries[] | .value.HostName) | 
+            select(contains($pattern))' 2>/dev/null | head -5
+    }
 }
 
 # Get all Tailscale hosts for completion

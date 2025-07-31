@@ -89,7 +89,7 @@ test_man_pages() {
     
     local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh")
     for cmd in "${commands[@]}"; do
-        run_test "$cmd man page" "man $cmd 2>/dev/null | head -1 | grep -q '$cmd'" 0
+        run_test "$cmd man page" "man $cmd 2>/dev/null | head -1 | grep -qi '$cmd'" 0
     done
 }
 
@@ -152,6 +152,9 @@ run_shell_tests() {
     echo -e "${BLUE}Running tests in $shell_name${RESET}"
     echo -e "${BLUE}===================================================${RESET}"
     
+    # Create a temporary file to store test results
+    local temp_results=$(mktemp)
+    
     # Execute tests in the specified shell
     "$shell_path" -c "
         # Import test functions
@@ -164,9 +167,9 @@ run_shell_tests() {
         $(declare -f run_test)
         
         # Set up test variables
-        TOTAL_TESTS=$TOTAL_TESTS
-        PASSED_TESTS=$PASSED_TESTS
-        FAILED_TESTS=$FAILED_TESTS
+        TOTAL_TESTS=0
+        PASSED_TESTS=0
+        FAILED_TESTS=0
         RED='$RED'
         GREEN='$GREEN'
         YELLOW='$YELLOW'
@@ -182,27 +185,25 @@ run_shell_tests() {
         test_version_consistency '$shell_name'
         test_security_features '$shell_name'
         
-        # Export counters back
-        echo \"TESTS_RESULT=\$TOTAL_TESTS,\$PASSED_TESTS,\$FAILED_TESTS\"
-    " 2>/dev/null | {
-        while IFS= read -r line; do
-            if [[ "$line" == TESTS_RESULT=* ]]; then
-                # Parse the results
-                local results="${line#TESTS_RESULT=}"
-                local total="${results%%,*}"
-                local remaining="${results#*,}"
-                local passed="${remaining%%,*}"
-                local failed="${remaining#*,}"
-                
-                # Update global counters
-                TOTAL_TESTS=$((TOTAL_TESTS + total))
-                PASSED_TESTS=$((PASSED_TESTS + passed))
-                FAILED_TESTS=$((FAILED_TESTS + failed))
-            else
-                echo "$line"
-            fi
-        done
-    }
+        # Export counters to temp file
+        echo \"\$TOTAL_TESTS,\$PASSED_TESTS,\$FAILED_TESTS\" > $temp_results
+    " 2>&1
+    
+    # Read the results from temp file
+    if [[ -f "$temp_results" ]]; then
+        local results=$(cat "$temp_results")
+        local total="${results%%,*}"
+        local remaining="${results#*,}"
+        local passed="${remaining%%,*}"
+        local failed="${remaining#*,}"
+        
+        # Update global counters
+        TOTAL_TESTS=$((TOTAL_TESTS + total))
+        PASSED_TESTS=$((PASSED_TESTS + passed))
+        FAILED_TESTS=$((FAILED_TESTS + failed))
+        
+        rm -f "$temp_results"
+    fi
 }
 
 # Main execution

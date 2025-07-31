@@ -1,299 +1,106 @@
-#!/bin/bash
-# Universal setup script for tailscale-cli-helpers
-# Installs standalone binary commands
+#!/usr/bin/env bash
+#
+# setup.sh - Universal installer for Tailscale CLI helpers
+#
+# This script can install the tools for either a single user or system-wide
+#
 
-set -e
+set -euo pipefail
 
-# Security: Set secure umask for file creation
-umask 0022
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Security: Validate source files exist and are regular files
-validate_source_file() {
-    local file="$1"
-    [[ -f "$file" && ! -L "$file" ]] || {
-        echo "Error: Invalid or missing source file: $file" >&2
-        return 1
-    }
-    # Check file is readable
-    [[ -r "$file" ]] || {
-        echo "Error: Cannot read source file: $file" >&2
-        return 1
-    }
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Print colored output
+print_error() {
+    echo -e "${RED}ERROR: $1${NC}" >&2
 }
 
-# Security: Validate destination directory
-validate_destination_dir() {
-    local dir="$1"
-    # Ensure no path traversal
-    case "$dir" in
-        *../*|*/..*|../*|*..)
-            echo "Error: Path traversal detected in: $dir" >&2
-            return 1
-            ;;
-    esac
-    return 0
+print_success() {
+    echo -e "${GREEN}$1${NC}"
 }
 
-# Check dependencies
-check_dependencies() {
-    local missing=()
-    
-    # Check for jq
-    if ! command -v jq &> /dev/null; then
-        missing+=("jq")
-    fi
-    
-    # Check for tailscale
-    if ! command -v tailscale &> /dev/null; then
-        missing+=("tailscale")
-    fi
-    
-    if [[ ${#missing[@]} -gt 0 ]]; then
-        echo "Missing dependencies: ${missing[*]}"
-        echo "Please install them before running this setup."
-        return 1
-    fi
-    
-    return 0
+print_warning() {
+    echo -e "${YELLOW}WARNING: $1${NC}"
 }
 
-# Create bash completion file
-create_bash_completion() {
-    local completion_file="$1"
-    
-    cat > "$completion_file" << 'EOF'
-# Bash completion for Tailscale CLI helpers
-
-# Source the shared library for host list functions
-if [[ -f /usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh ]]; then
-    source /usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh
-elif [[ -f ~/.local/share/tailscale-cli-helpers/lib/tailscale-resolver.sh ]]; then
-    source ~/.local/share/tailscale-cli-helpers/lib/tailscale-resolver.sh
-fi
-
-# Completion for tssh
-_tssh_completion() {
-    local cur="${COMP_WORDS[COMP_CWORD]}"
-    local prev="${COMP_WORDS[COMP_CWORD-1]}"
-    
-    # Handle options that need values
-    case "$prev" in
-        -i|-l|-p|-F|-E|-L|-R|-D|-W|-J|-Q|-c|-m|-b|-e|-o)
-            # Let bash handle file/value completion
-            return
-            ;;
-    esac
-    
-    # If current word starts with -, show SSH options
-    if [[ "$cur" == -* ]]; then
-        COMPREPLY=($(compgen -W "-4 -6 -A -a -C -f -G -g -K -k -M -N -n -q -s -T -t -V -v -X -x -Y -y -B -b -c -D -E -e -F -I -i -J -L -l -m -O -o -p -Q -R -S -W -w" -- "$cur"))
-        return
+# Detect OS and package manager
+detect_os() {
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        OS=$ID
+        OS_FAMILY=$ID_LIKE
+    elif type lsb_release >/dev/null 2>&1; then
+        OS=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
+    elif [[ -f /etc/debian_version ]]; then
+        OS=debian
+    elif [[ -f /etc/redhat-release ]]; then
+        OS=rhel
+    else
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     fi
     
-    # Complete hostnames
-    if type -t get_all_tailscale_hosts >/dev/null 2>&1; then
-        local hosts=$(get_all_tailscale_hosts 2>/dev/null)
-        if [[ -n "$hosts" ]]; then
-            # Handle user@host format
-            if [[ "$cur" == *@* ]]; then
-                local user_prefix="${cur%%@*}@"
-                local host_part="${cur#*@}"
-                COMPREPLY=($(compgen -W "$hosts" -- "$host_part" | sed "s/^/${user_prefix}/"))
-            else
-                COMPREPLY=($(compgen -W "$hosts" -- "$cur"))
-            fi
-        fi
+    # Determine package manager
+    if command -v apt-get >/dev/null 2>&1; then
+        PKG_MANAGER="apt"
+    elif command -v dnf >/dev/null 2>&1; then
+        PKG_MANAGER="dnf"
+    elif command -v yum >/dev/null 2>&1; then
+        PKG_MANAGER="yum"
+    elif command -v brew >/dev/null 2>&1; then
+        PKG_MANAGER="brew"
+    else
+        PKG_MANAGER="unknown"
     fi
 }
 
-# Completion for ts dispatcher
-_ts_completion() {
-    local cur="${COMP_WORDS[COMP_CWORD]}"
-    local prev="${COMP_WORDS[COMP_CWORD-1]}"
+# Install bash completion file
+install_bash_completion() {
+    local dest_file="$1"
+    local source_file="tailscale-completion.sh"
     
-    # First argument - subcommands or hostnames
-    if [[ ${COMP_CWORD} -eq 1 ]]; then
-        local subcommands="help ssh ssh_copy_id scp sftp rsync mussh"
-        
-        # Add available commands based on what's installed
-        local available_commands="help ssh ssh_copy_id"
-        command -v scp >/dev/null 2>&1 && available_commands="$available_commands scp"
-        command -v sftp >/dev/null 2>&1 && available_commands="$available_commands sftp"
-        command -v rsync >/dev/null 2>&1 && available_commands="$available_commands rsync"
-        command -v mussh >/dev/null 2>&1 && available_commands="$available_commands mussh"
-        
-        # Get hostnames for default SSH behavior
-        local hosts=""
-        if type -t get_all_tailscale_hosts >/dev/null 2>&1; then
-            hosts=$(get_all_tailscale_hosts 2>/dev/null)
-        fi
-        
-        COMPREPLY=($(compgen -W "$available_commands $hosts" -- "$cur"))
-        return
-    fi
-    
-    # Delegate to specific command completion
-    case "${COMP_WORDS[1]}" in
-        ssh|sftp)
-            # Use tssh completion logic
-            _tssh_completion
-            ;;
-        ssh_copy_id)
-            _tssh_copy_id_completion
-            ;;
-        scp)
-            _tscp_completion
-            ;;
-        rsync)
-            _trsync_completion
-            ;;
-        mussh)
-            _tmussh_completion
-            ;;
-    esac
-}
-
-# Completion for tscp
-_tscp_completion() {
-    local cur="${COMP_WORDS[COMP_CWORD]}"
-    
-    # Let bash handle local files
-    if [[ "$cur" != *:* ]]; then
-        # Check if this might be a remote spec being typed
-        if type -t get_all_tailscale_hosts >/dev/null 2>&1; then
-            local hosts=$(get_all_tailscale_hosts 2>/dev/null)
-            if [[ -n "$hosts" ]]; then
-                # Add : to each host for remote path completion
-                COMPREPLY=($(compgen -W "$hosts" -- "$cur" | sed 's/$/:\/~/'))
-            fi
-        fi
-        # Also include local file completion
-        COMPREPLY+=($(compgen -f -- "$cur"))
-    fi
-}
-
-# Completion for tsftp
-_tsftp_completion() {
-    _tssh_completion
-}
-
-# Completion for trsync
-_trsync_completion() {
-    local cur="${COMP_WORDS[COMP_CWORD]}"
-    
-    # If current word starts with -, show rsync options
-    if [[ "$cur" == -* ]]; then
-        COMPREPLY=($(compgen -W "-v -q -c -a -r -R -b -u -l -L -H -p -o -g -D -t -S -n -W -x -B -e -C -I -T -P -z -h --verbose --quiet --checksum --archive --recursive --relative --backup --update --links --copy-links --hard-links --perms --owner --group --devices --times --sparse --dry-run --whole-file --one-file-system --block-size --rsh --existing --ignore-existing --temp-dir --compare-dest --copy-dest --link-dest --compress --human-readable --progress --partial --partial-dir --delay-updates --delete --delete-before --delete-during --delete-after --delete-excluded --ignore-errors --force --max-delete --max-size --min-size --timeout --contimeout --modify-window --include --include-from --exclude --exclude-from --files-from --address --port --sockopts --blocking-io --stats --8-bit-output --human-readable --progress --itemize-changes --out-format --log-file --log-file-format --password-file --list-only --bwlimit --write-batch --only-write-batch --read-batch --protocol --iconv --ipv4 --ipv6 --version --help" -- "$cur"))
-        return
-    fi
-    
-    # Otherwise use tscp completion logic for remote paths
-    _tscp_completion
-}
-
-# Completion for tssh_copy_id
-_tssh_copy_id_completion() {
-    local cur="${COMP_WORDS[COMP_CWORD]}"
-    local prev="${COMP_WORDS[COMP_CWORD-1]}"
-    
-    # Handle options that need values
-    case "$prev" in
-        -i|-p|-o|-J)
-            # Let bash handle file/value completion
-            return
-            ;;
-    esac
-    
-    # If current word starts with -, show options
-    if [[ "$cur" == -* ]]; then
-        COMPREPLY=($(compgen -W "-i -p -o -f -J" -- "$cur"))
-        return
-    fi
-    
-    # Complete hostnames
-    if type -t get_all_tailscale_hosts >/dev/null 2>&1; then
-        local hosts=$(get_all_tailscale_hosts 2>/dev/null)
-        if [[ -n "$hosts" ]]; then
-            # Handle user@host format
-            if [[ "$cur" == *@* ]]; then
-                local user_prefix="${cur%%@*}@"
-                local host_part="${cur#*@}"
-                COMPREPLY=($(compgen -W "$hosts" -- "$host_part" | sed "s/^/${user_prefix}/"))
-            else
-                COMPREPLY=($(compgen -W "$hosts" -- "$cur"))
-            fi
-        fi
-    fi
-}
-
-# Completion for tmussh
-_tmussh_completion() {
-    local cur="${COMP_WORDS[COMP_CWORD]}"
-    local prev="${COMP_WORDS[COMP_CWORD-1]}"
-    
-    # Handle options that need values
-    case "$prev" in
-        -h|--hosts)
-            # Complete hostnames, including wildcards
-            if type -t get_all_tailscale_hosts >/dev/null 2>&1; then
-                local hosts=$(get_all_tailscale_hosts 2>/dev/null)
-                COMPREPLY=($(compgen -W "$hosts" -- "$cur"))
-                # Also suggest wildcard patterns
-                if [[ -z "$cur" ]] || [[ "$cur" == *"*"* ]]; then
-                    COMPREPLY+=("*" "web-*" "prod-*" "dev-*")
-                fi
-            fi
-            return
-            ;;
-        -H|--hostfile|-c|--command|-m|-t)
-            # Let bash handle file/value completion
-            return
-            ;;
-    esac
-    
-    # Show mussh options
-    if [[ "$cur" == -* ]]; then
-        COMPREPLY=($(compgen -W "-h --hosts -H --hostfile -c --command -m -t -v -q" -- "$cur"))
-    fi
-}
-
-# Register completions
-complete -F _tssh_completion tssh
-complete -F _ts_completion ts
-complete -F _tscp_completion tscp
-complete -F _tsftp_completion tsftp
-complete -F _trsync_completion trsync
-complete -F _tssh_copy_id_completion tssh_copy_id
-
-# Only register tmussh completion if tmussh is available
-if command -v tmussh >/dev/null 2>&1; then
-    complete -F _tmussh_completion tmussh
-fi
+    # Try to find the completion file
+    if [[ -f "$source_file" ]]; then
+        cp "$source_file" "$dest_file"
+        chmod 644 "$dest_file"
+        return 0
+    elif [[ -f "$SCRIPT_DIR/$source_file" ]]; then
+        cp "$SCRIPT_DIR/$source_file" "$dest_file"
+        chmod 644 "$dest_file"
+        return 0
+    else
+        # Fallback: create minimal completion
+        cat > "$dest_file" << 'EOF'
+# Minimal fallback completion for Tailscale CLI helpers
+complete -W "ssh scp sftp rsync ssh_copy_id mussh help" ts
+complete -W "-v -h --help -V --version" tssh tscp tsftp trsync tssh_copy_id
 EOF
+        echo "Warning: Using minimal completion. Full completion file not found." >&2
+    fi
 }
 
 # Clean up old function-based installation
 cleanup_old_installation() {
-    local install_type="$1"  # "user" or "system"
+    local mode="$1"  # "user" or "system"
     
-    if [[ "$install_type" == "user" ]]; then
-        # Remove old user function files
-        local old_install_dir="$HOME/.config/tailscale-cli-helpers"
-        if [[ -d "$old_install_dir" ]]; then
-            echo "Removing old function-based installation from $old_install_dir..."
-            rm -rf "$old_install_dir"
-        fi
-        
-        # Remove old sourcing lines from shell RC files
-        for rc_file in "$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.bash_profile"; do
-            if [[ -f "$rc_file" ]]; then
-                if grep -q "tailscale-cli-helpers/tailscale-ssh-helper.sh" "$rc_file" 2>/dev/null; then
-                    echo "Removing old sourcing lines from $rc_file..."
-                    # Create backup
-                    cp "$rc_file" "$rc_file.bak.$(date +%Y%m%d_%H%M%S)"
-                    # Remove lines containing the old source command
-                    grep -v "tailscale-cli-helpers/tailscale-ssh-helper.sh" "$rc_file" > "$rc_file.tmp" && mv "$rc_file.tmp" "$rc_file"
+    if [[ "$mode" == "user" ]]; then
+        # Remove old sourcing from shell rc files
+        local rc_files=("$HOME/.bashrc" "$HOME/.zshrc")
+        for rc in "${rc_files[@]}"; do
+            if [[ -f "$rc" ]]; then
+                # Remove old sourcing lines
+                sed -i.bak '/tailscale-ssh-helper\.sh/d' "$rc" 2>/dev/null || true
+                sed -i.bak '/tailscale-cli-helpers.*profile\.d/d' "$rc" 2>/dev/null || true
+                # Clean up backup if changes were made
+                if ! diff -q "$rc" "$rc.bak" >/dev/null 2>&1; then
+                    echo "Removed old configuration from $rc"
                 fi
+                rm -f "$rc.bak"
             fi
         done
         
@@ -302,9 +109,8 @@ cleanup_old_installation() {
             rm -f "$HOME/.local/share/bash-completion/completions/tailscale-ssh-helper"
         fi
         
-    elif [[ "$install_type" == "system" ]]; then
-        # Remove old system function files
-        local old_install_dir="/usr/share/tailscale-cli-helpers"
+        # Remove old function files from user directory
+        local old_install_dir="$HOME/.local/share/tailscale-cli-helpers"
         if [[ -d "$old_install_dir" ]] && [[ ! -d "$old_install_dir/lib" ]]; then
             echo "Removing old function-based installation from $old_install_dir..."
             # Only remove if it doesn't have the new lib/ structure
@@ -315,11 +121,14 @@ cleanup_old_installation() {
             # Remove directory if empty
             rmdir "$old_install_dir" 2>/dev/null || true
         fi
-        
-        # Remove old profile.d script
+    else
+        # System-wide cleanup
         if [[ -f "/etc/profile.d/tailscale-cli-helpers.sh" ]]; then
-            echo "Removing old profile.d script..."
-            rm -f "/etc/profile.d/tailscale-cli-helpers.sh"
+            # Check if it's the old version (contains source commands)
+            if grep -q "tailscale-ssh-helper.sh" "/etc/profile.d/tailscale-cli-helpers.sh" 2>/dev/null; then
+                echo "Removing old system-wide profile script..."
+                rm -f "/etc/profile.d/tailscale-cli-helpers.sh"
+            fi
         fi
         
         # Remove old bash completion if it contains function loading
@@ -332,14 +141,24 @@ cleanup_old_installation() {
     fi
 }
 
-# Install for user
-install_for_user() {
+# Validate destination directory is writable and safe
+validate_destination_dir() {
+    local dir="$1"
+    if [[ ! -d "$dir" ]] || [[ ! -w "$dir" ]]; then
+        print_error "Directory $dir is not writable"
+        return 1
+    fi
+    return 0
+}
+
+# Install for current user
+install_user() {
     echo "Installing Tailscale CLI helpers for current user..."
     
     # Clean up old installation first
     cleanup_old_installation "user"
     
-    # Create directories
+    # Setup directories
     local bin_dir="$HOME/.local/bin"
     local lib_dir="$HOME/.local/share/tailscale-cli-helpers/lib"
     local man_dir="$HOME/.local/share/man/man1"
@@ -356,77 +175,74 @@ install_for_user() {
     # Install executables (excluding tmussh - optional)
     local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id")
     for cmd in "${commands[@]}"; do
-        if [[ -f "bin/$cmd" ]]; then
-            validate_source_file "bin/$cmd" || return 1
-            cp "bin/$cmd" "$bin_dir/" && chmod 755 "$bin_dir/$cmd"
+        if [[ -f "$SCRIPT_DIR/bin/$cmd" ]]; then
+            install -m 755 "$SCRIPT_DIR/bin/$cmd" "$bin_dir/"
             echo "Installed: $cmd"
+        else
+            print_warning "Skipping $cmd - not found"
         fi
     done
     
-    # Optional: Install tmussh if mussh is available
-    if command -v mussh >/dev/null 2>&1; then
-        if [[ -f "bin/tmussh" ]]; then
-            validate_source_file "bin/tmussh" || return 1
-            cp "bin/tmussh" "$bin_dir/" && chmod 755 "$bin_dir/tmussh"
-            echo "Installed: tmussh (mussh detected)"
+    # Check if tmussh exists and install if available
+    if [[ -f "$SCRIPT_DIR/bin/tmussh" ]]; then
+        if command -v mussh >/dev/null 2>&1; then
+            install -m 755 "$SCRIPT_DIR/bin/tmussh" "$bin_dir/"
+            echo "Installed: tmussh (mussh found)"
+        else
+            print_warning "Skipping tmussh - mussh not installed"
+            echo "To enable tmussh, install mussh first"
         fi
-    else
-        echo "Skipped: tmussh (mussh not installed)"
     fi
     
-    # Install shared library
-    if [[ -f "lib/tailscale-resolver.sh" ]]; then
-        validate_source_file "lib/tailscale-resolver.sh" || return 1
-        cp "lib/tailscale-resolver.sh" "$lib_dir/" && chmod 644 "$lib_dir/tailscale-resolver.sh"
-        echo "Installed: shared library"
-    fi
+    # Install shared libraries
+    install -m 644 "$SCRIPT_DIR/lib/tailscale-resolver.sh" "$lib_dir/"
+    install -m 644 "$SCRIPT_DIR/lib/common.sh" "$lib_dir/"
+    echo "Installed: shared libraries"
     
-    # Install man pages (excluding tmussh unless installed)
-    for man in man/man1/*.1; do
+    # Install man pages
+    for man in "$SCRIPT_DIR"/man/man1/*.1; do
         if [[ -f "$man" ]]; then
-            local man_name="$(basename "$man")"
-            # Skip tmussh man page if tmussh wasn't installed
-            if [[ "$man_name" == "tmussh.1" ]] && ! command -v mussh >/dev/null 2>&1; then
-                echo "Skipped: $man_name man page (mussh not installed)"
+            # Skip tmussh man page if mussh not installed
+            if [[ "$(basename "$man")" == "tmussh.1" ]] && ! command -v mussh >/dev/null 2>&1; then
                 continue
             fi
-            validate_source_file "$man" || return 1
-            gzip -c "$man" > "$man_dir/$man_name.gz"
-            echo "Installed: $man_name man page"
+            gzip -c "$man" > "$man_dir/$(basename "$man").gz"
         fi
     done
+    echo "Installed: man pages"
     
     # Install bash completion
-    create_bash_completion "$completion_dir/tailscale-cli-helpers"
+    install_bash_completion "$completion_dir/tailscale-cli-helpers"
     echo "Installed: bash completions"
     
     # Check if ~/.local/bin is in PATH
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+        print_warning "~/.local/bin is not in your PATH"
         echo ""
-        echo "WARNING: $HOME/.local/bin is not in your PATH"
-        echo "Add this line to your shell configuration file:"
-        echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
-    fi
-    
-    echo ""
-    echo "Installation complete!"
-    if command -v mussh >/dev/null 2>&1; then
-        echo "Commands available: ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tmussh"
+        echo "Add to your shell configuration file:"
+        echo '  export PATH="$HOME/.local/bin:$PATH"'
+        echo ""
+        echo "For bash (~/.bashrc):"
+        echo '  echo '\''export PATH="$HOME/.local/bin:$PATH"'\'' >> ~/.bashrc'
+        echo ""
+        echo "For zsh (~/.zshrc):"
+        echo '  echo '\''export PATH="$HOME/.local/bin:$PATH"'\'' >> ~/.zshrc'
     else
-        echo "Commands available: ts, tssh, tscp, tsftp, trsync, tssh_copy_id"
-        echo "Note: tmussh not installed (requires mussh)"
+        print_success "Installation complete!"
+        echo "Commands are available in your current PATH."
     fi
     echo ""
     echo "To enable bash completions in current shell:"
     echo "  source $completion_dir/tailscale-cli-helpers"
 }
 
-# Install system-wide
-install_system_wide() {
+# Install system-wide (requires root/sudo)
+install_system() {
+    # Check if running as root
     if [[ $EUID -ne 0 ]]; then
-        echo "System-wide installation requires root privileges."
+        print_error "System-wide installation requires root privileges"
         echo "Please run with sudo: sudo $0 --system"
-        return 1
+        exit 1
     fi
     
     echo "Installing Tailscale CLI helpers system-wide..."
@@ -434,7 +250,7 @@ install_system_wide() {
     # Clean up old installation first
     cleanup_old_installation "system"
     
-    # Create directories
+    # Setup directories
     local bin_dir="/usr/bin"
     local lib_dir="/usr/share/tailscale-cli-helpers/lib"
     local man_dir="/usr/share/man/man1"
@@ -449,179 +265,259 @@ install_system_wide() {
     validate_destination_dir "$completion_dir" || return 1
     
     # Install executables
-    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh")
+    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id")
     for cmd in "${commands[@]}"; do
-        if [[ -f "bin/$cmd" ]]; then
-            validate_source_file "bin/$cmd" || return 1
-            install -m 755 "bin/$cmd" "$bin_dir/"
+        if [[ -f "$SCRIPT_DIR/bin/$cmd" ]]; then
+            install -m 755 "$SCRIPT_DIR/bin/$cmd" "$bin_dir/"
             echo "Installed: $cmd"
         fi
     done
     
-    # Install shared library
-    if [[ -f "lib/tailscale-resolver.sh" ]]; then
-        validate_source_file "lib/tailscale-resolver.sh" || return 1
-        install -m 644 "lib/tailscale-resolver.sh" "$lib_dir/"
-        echo "Installed: shared library"
+    # Install tmussh if mussh is available
+    if [[ -f "$SCRIPT_DIR/bin/tmussh" ]] && command -v mussh >/dev/null 2>&1; then
+        install -m 755 "$SCRIPT_DIR/bin/tmussh" "$bin_dir/"
+        echo "Installed: tmussh"
     fi
     
+    # Install shared libraries
+    install -m 644 "$SCRIPT_DIR/lib/tailscale-resolver.sh" "$lib_dir/"
+    install -m 644 "$SCRIPT_DIR/lib/common.sh" "$lib_dir/"
+    echo "Installed: shared libraries"
+    
     # Install man pages
-    for man in man/man1/*.1; do
+    for man in "$SCRIPT_DIR"/man/man1/*.1; do
         if [[ -f "$man" ]]; then
-            validate_source_file "$man" || return 1
+            # Skip tmussh man page if mussh not installed  
+            if [[ "$(basename "$man")" == "tmussh.1" ]] && ! command -v mussh >/dev/null 2>&1; then
+                continue
+            fi
             gzip -c "$man" > "$man_dir/$(basename "$man").gz"
-            chmod 644 "$man_dir/$(basename "$man").gz"
-            echo "Installed: $(basename "$man") man page"
         fi
     done
+    echo "Installed: man pages"
     
     # Install bash completion
-    create_bash_completion "$completion_dir/tailscale-cli-helpers"
-    chmod 644 "$completion_dir/tailscale-cli-helpers"
+    install_bash_completion "$completion_dir/tailscale-cli-helpers"
     echo "Installed: bash completions"
     
     echo ""
-    echo "System-wide installation complete!"
-    if command -v mussh >/dev/null 2>&1; then
-        echo "Commands available: ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tmussh"
-    else
-        echo "Commands available: ts, tssh, tscp, tsftp, trsync, tssh_copy_id"
-        echo "Note: tmussh not installed (requires mussh)"
+    print_success "System-wide installation complete!"
+    
+    # Check if this is a package-managed installation
+    if [[ -f "/usr/bin/tailscale-cli-helpers-setup" ]] && [[ "$0" == "/usr/bin/tailscale-cli-helpers-setup" ]]; then
+        echo "Note: This appears to be a package-managed installation."
+        echo "Updates should be done through your package manager."
     fi
     echo "Commands are immediately available in all shells."
     echo "Bash completions will be available in new bash sessions."
 }
 
-# Uninstall
+# Uninstall function
 uninstall() {
-    echo "Uninstalling Tailscale CLI helpers..."
+    local mode="$1"
     
-    # Remove user installation
-    if [[ -d "$HOME/.local/share/tailscale-cli-helpers" ]]; then
-        rm -rf "$HOME/.local/share/tailscale-cli-helpers"
-        echo "Removed user library files"
-    fi
-    
-    # Remove user binaries
-    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh")
-    for cmd in "${commands[@]}"; do
-        if [[ -f "$HOME/.local/bin/$cmd" ]]; then
-            rm -f "$HOME/.local/bin/$cmd"
-            echo "Removed user binary: $cmd"
-        fi
-    done
-    
-    # Remove user man pages
-    for man in "$HOME/.local/share/man/man1"/ts*.1.gz; do
-        if [[ -f "$man" ]]; then
-            rm -f "$man"
-            echo "Removed: $(basename "$man")"
-        fi
-    done
-    
-    # Remove user bash completion
-    if [[ -f "$HOME/.local/share/bash-completion/completions/tailscale-cli-helpers" ]]; then
-        rm -f "$HOME/.local/share/bash-completion/completions/tailscale-cli-helpers"
-        echo "Removed user bash completions"
-    fi
-    
-    # Remove system installation (requires root)
-    if [[ $EUID -eq 0 ]]; then
-        if [[ -d "/usr/share/tailscale-cli-helpers" ]]; then
-            rm -rf "/usr/share/tailscale-cli-helpers"
-            echo "Removed system library files"
-        fi
+    if [[ "$mode" == "user" ]]; then
+        echo "Removing user installation..."
         
+        # Remove executables
+        local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh")
         for cmd in "${commands[@]}"; do
-            if [[ -f "/usr/bin/$cmd" ]]; then
-                rm -f "/usr/bin/$cmd"
-                echo "Removed system binary: $cmd"
-            fi
+            [[ -f "$HOME/.local/bin/$cmd" ]] && rm -f "$HOME/.local/bin/$cmd" && echo "Removed: $cmd"
         done
         
+        # Remove libraries
+        if [[ -d "$HOME/.local/share/tailscale-cli-helpers" ]]; then
+            rm -rf "$HOME/.local/share/tailscale-cli-helpers"
+            echo "Removed: shared libraries"
+        fi
+        
+        # Remove man pages
+        for man in "$HOME"/.local/share/man/man1/ts*.1.gz; do
+            [[ -f "$man" ]] && rm -f "$man"
+        done
+        
+        # Remove user bash completion
+        if [[ -f "$HOME/.local/share/bash-completion/completions/tailscale-cli-helpers" ]]; then
+            rm -f "$HOME/.local/share/bash-completion/completions/tailscale-cli-helpers"
+            echo "Removed user bash completions"
+        fi
+        
+        print_success "User installation removed"
+    else
+        # System-wide uninstall
+        if [[ $EUID -ne 0 ]]; then
+            print_error "System-wide uninstall requires root privileges"
+            echo "Please run with sudo: sudo $0 --uninstall"
+            exit 1
+        fi
+        
+        echo "Removing system-wide installation..."
+        
+        local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh")
+        for cmd in "${commands[@]}"; do
+            [[ -f "/usr/bin/$cmd" ]] && rm -f "/usr/bin/$cmd" && echo "Removed: $cmd"
+        done
+        
+        if [[ -d "/usr/share/tailscale-cli-helpers" ]]; then
+            rm -rf "/usr/share/tailscale-cli-helpers"
+            echo "Removed: shared libraries"
+        fi
+        
         for man in /usr/share/man/man1/ts*.1.gz; do
-            if [[ -f "$man" ]]; then
-                rm -f "$man"
-                echo "Removed: $(basename "$man")"
-            fi
+            [[ -f "$man" ]] && rm -f "$man"
         done
         
         if [[ -f "/etc/bash_completion.d/tailscale-cli-helpers" ]]; then
             rm -f "/etc/bash_completion.d/tailscale-cli-helpers"
             echo "Removed system bash completions"
         fi
-    else
-        echo "Note: Run with sudo to remove system-wide installation"
+        
+        # Clean up old files
+        cleanup_old_installation "system"
+        
+        print_success "System-wide installation removed"
     fi
-    
-    echo "Uninstallation complete!"
 }
 
-# Main function
-main() {
-    local mode="auto"
+# Check dependencies
+check_dependencies() {
+    local missing=()
     
-    # Parse arguments
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --user)
-                mode="user"
-                shift
+    # Required dependencies
+    if ! command -v jq >/dev/null 2>&1; then
+        missing+=("jq")
+    fi
+    
+    if ! command -v tailscale >/dev/null 2>&1; then
+        missing+=("tailscale")
+    fi
+    
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        print_error "Missing required dependencies: ${missing[*]}"
+        echo ""
+        echo "Please install missing dependencies:"
+        
+        case "$PKG_MANAGER" in
+            apt)
+                echo "  sudo apt update && sudo apt install ${missing[*]}"
                 ;;
-            --system)
-                mode="system"
-                shift
+            dnf)
+                echo "  sudo dnf install ${missing[*]}"
                 ;;
-            --uninstall)
-                mode="uninstall"
-                shift
+            yum)
+                echo "  sudo yum install ${missing[*]}"
                 ;;
-            --help|-h)
-                echo "Usage: $0 [OPTIONS]"
-                echo ""
-                echo "Options:"
-                echo "  --user       Install for current user only"
-                echo "  --system     Install system-wide (requires sudo)"
-                echo "  --uninstall  Remove installation"
-                echo "  --help       Show this help message"
-                echo ""
-                echo "Without options, installs for current user if not root,"
-                echo "or system-wide if running as root."
-                exit 0
+            brew)
+                echo "  brew install ${missing[*]}"
                 ;;
             *)
-                echo "Unknown option: $1"
-                exit 1
+                echo "  Install: ${missing[*]}"
                 ;;
         esac
-    done
-    
-    # Check dependencies (except for uninstall)
-    if [[ "$mode" != "uninstall" ]]; then
-        check_dependencies || exit 1
+        return 1
     fi
     
-    # Auto-detect mode if not specified
-    if [[ "$mode" == "auto" ]]; then
-        if [[ $EUID -eq 0 ]]; then
-            mode="system"
-        else
-            mode="user"
-        fi
+    # Optional dependencies
+    local optional=()
+    if ! command -v scp >/dev/null 2>&1; then
+        optional+=("openssh-clients (for scp)")
     fi
     
-    # Execute based on mode
-    case "$mode" in
-        user)
-            install_for_user
-            ;;
-        system)
-            install_system_wide
-            ;;
-        uninstall)
-            uninstall
-            ;;
-    esac
+    if ! command -v rsync >/dev/null 2>&1; then
+        optional+=("rsync")
+    fi
+    
+    if ! command -v mussh >/dev/null 2>&1; then
+        optional+=("mussh (for tmussh)")
+    fi
+    
+    if [[ ${#optional[@]} -gt 0 ]]; then
+        print_warning "Optional dependencies not installed:"
+        for opt in "${optional[@]}"; do
+            echo "  - $opt"
+        done
+        echo "Some features may not be available."
+    fi
+    
+    return 0
 }
 
+# Show usage
+usage() {
+    echo "Tailscale CLI Helpers Setup"
+    echo ""
+    echo "Usage: $0 [option]"
+    echo ""
+    echo "Options:"
+    echo "  --user       Install for current user only (default)"
+    echo "  --system     Install system-wide (requires sudo)"
+    echo "  --uninstall  Remove installation"
+    echo "  --help       Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  $0              # Install for current user"
+    echo "  $0 --user       # Install for current user"
+    echo "  sudo $0 --system    # Install system-wide"
+    echo "  $0 --uninstall      # Remove user installation"
+    echo "  sudo $0 --uninstall # Remove system installation"
+}
+
+# Main
+main() {
+    detect_os
+    
+    # Default to user installation
+    local mode="user"
+    local action="install"
+    
+    # Parse arguments
+    case "${1:-}" in
+        --system|-s)
+            mode="system"
+            ;;
+        --user|-u)
+            mode="user"
+            ;;
+        --uninstall)
+            action="uninstall"
+            # Detect which type of installation exists
+            if [[ $EUID -eq 0 ]] || [[ -f "/usr/bin/ts" ]]; then
+                mode="system"
+            else
+                mode="user"
+            fi
+            ;;
+        --help|-h|help)
+            usage
+            exit 0
+            ;;
+        "")
+            # No argument, default to user install
+            mode="user"
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            usage
+            exit 1
+            ;;
+    esac
+    
+    # Perform action
+    if [[ "$action" == "uninstall" ]]; then
+        uninstall "$mode"
+    else
+        # Check dependencies before installation
+        if ! check_dependencies; then
+            exit 1
+        fi
+        
+        if [[ "$mode" == "system" ]]; then
+            install_system
+        else
+            install_user
+        fi
+    fi
+}
+
+# Run main function
 main "$@"
