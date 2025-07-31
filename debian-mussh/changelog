@@ -1,3 +1,12 @@
+tailscale-cli-helpers-mussh (0.3.0-1) unstable; urgency=medium
+
+  * Fixed broken wildcard pattern matching in tmussh
+  * Now uses restored find_multiple_hosts_matching function
+  * Package dependency changed to minimum version (>= 0.2.1)
+  * Future updates only needed when tmussh functionality changes
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 31 Jul 2025 13:37:11 +0800
+
 tailscale-cli-helpers-mussh (0.2.4-1) unstable; urgency=medium
 
   * Version bump to match main package

@@ -1,3 +1,15 @@
+tailscale-cli-helpers (0.3.0-1) unstable; urgency=medium
+
+  * Restored deleted functionality from modular refactoring
+  * Fixed multiple host selection menu with fuzzy matching
+  * Restored security validation functions (_sanitize_pattern)
+  * Added comprehensive tab completion (tailscale-completion.sh)
+  * Fixed test counting issues (was showing 0/0)
+  * Updated all tests to work with new modular structure
+  * All 56 tests now pass correctly
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 31 Jul 2025 13:37:11 +0800
+
 tailscale-cli-helpers (0.2.4-1) unstable; urgency=medium
 
   * Fixed missing common.sh library in package (fixes version display)

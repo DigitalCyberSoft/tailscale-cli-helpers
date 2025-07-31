@@ -10,13 +10,19 @@ To release a new version:
    - `VERSION` (main version file)
    - `lib/common.sh` (TAILSCALE_CLI_HELPERS_VERSION)
    - `tailscale-cli-helpers.spec` (Version field)
+   - `debian/changelog`
+   
+2. **For mussh package (ONLY if tmussh functionality changed):**
    - `tailscale-cli-helpers-mussh.spec` (Version field)
-   - `debian/changelog` 
    - `debian-mussh/changelog`
-2. Update Homebrew formula SHA256 hash (if needed)
-3. Commit changes and create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
-4. Build packages (see below)
-5. Create GitHub release with packages attached
+   - The mussh package has independent versioning and should only be updated when tmussh is modified
+   - RPM spec uses `Requires: tailscale-cli-helpers >= 0.2.0` (minimum version)
+   - Debian package uses `Depends: tailscale-cli-helpers (>= 0.2.1)` (minimum version)
+
+3. Update Homebrew formula SHA256 hash (if needed)
+4. Commit changes and create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
+5. Build packages (see below)
+6. Create GitHub release with packages attached
 
 ## Package Building
 
