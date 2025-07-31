@@ -5,7 +5,7 @@ Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.2.4.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.0.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -23,7 +23,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.2.4
+%setup -q -n %{name}-0.3.0
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -103,6 +103,14 @@ fi
 %{_bindir}/%{name}-setup
 
 %changelog
+* Thu Jul 31 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.0-1
+- Restored functionality that was accidentally deleted during modular refactoring
+- Restored multiple host selection menu with fuzzy matching
+- Restored security validation functions (_sanitize_pattern)
+- Restored tab completion (tailscale-completion.sh)
+- Fixed test counting that was broken (showing 0/0)
+- Updated all tests to work with new modular structure
+
 * Thu Jul 31 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.4-1
 - Fixed missing common.sh library in package (fixes version display)
 - Updated Debian packaging to use new bin/ structure
@@ -122,7 +130,7 @@ fi
 - Enhanced setup.sh with improved error handling and platform detection
 - Updated test suites for better coverage and reliability
 
-* Wed Jul 24 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.1-1
+* Thu Jul 24 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.1-1
 - Major security hardening with input validation and injection protection
 - Added tsftp command for SFTP support as modern alternative to SCP
 - Enhanced tab completion with version-aware features and Levenshtein sorting
@@ -131,7 +139,7 @@ fi
 - Added 40+ security tests covering all attack vectors
 - Improved tmussh with multi-host functionality and pattern support
 
-* Wed Jul 24 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.0-1
+* Thu Jul 24 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.0-1
 - MAJOR: Refactored from shell functions to standalone executables
 - Commands now immediately available after installation (no shell restart needed)
 - Added complete man pages for all commands
