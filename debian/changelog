@@ -1,3 +1,11 @@
+tailscale-cli-helpers (0.2.3-1) unstable; urgency=medium
+
+  * Renamed tmussh package to mussh for clarity
+  * Added Suggests for optional mussh extension package
+  * Main package now suggests mussh extension when available
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 31 Jul 2025 12:00:00 +0000
+
 tailscale-cli-helpers (0.2.2-1) unstable; urgency=medium
 
   * Split tmussh into separate optional package for better dependency management

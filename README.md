@@ -6,8 +6,8 @@ Comprehensive Bash/Zsh functions for secure SSH, file transfer, and parallel ope
 
 ```bash
 # One-line install
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.2.tar.gz
-tar -xzf v0.2.2.tar.gz && cd tailscale-cli-helpers-0.2.2
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.3.tar.gz
+tar -xzf v0.2.3.tar.gz && cd tailscale-cli-helpers-0.2.3
 ./setup.sh
 
 # Then use commands
@@ -48,7 +48,14 @@ ts ssh_copy_id myhost           # Via dispatcher
 - **Conditional features**: Only enables commands when required tools are installed
 - **Clean completion**: Internal functions hidden from tab completion
 
-## 🆕 What's New in v0.2.2
+## 🆕 What's New in v0.2.3
+
+### Package Naming Update
+- **Renamed Package**: `tailscale-cli-helpers-tmussh` → `tailscale-cli-helpers-mussh`
+- **Smooth Upgrades**: Automatic upgrade path from old package name
+- **No Changes Required**: The `tmussh` command remains unchanged
+
+## 📦 What's New in v0.2.2
 
 ### Modular Package Architecture
 - **Split packaging**: `tmussh` now available as separate optional package
@@ -87,9 +94,9 @@ ts ssh_copy_id myhost           # Via dispatcher
 
 ```bash
 # Download latest release
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.2.tar.gz
-tar -xzf v0.2.2.tar.gz
-cd tailscale-cli-helpers-0.2.2
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.3.tar.gz
+tar -xzf v0.2.3.tar.gz
+cd tailscale-cli-helpers-0.2.3
 
 # Install for current user
 ./setup.sh
@@ -106,19 +113,19 @@ sudo ./setup.sh --system
 #### RPM (Fedora/RHEL/CentOS)
 ```bash
 # Main package
-sudo rpm -i tailscale-cli-helpers-0.2.2-1.noarch.rpm
+sudo rpm -i tailscale-cli-helpers-0.2.3-1.noarch.rpm
 
 # Optional: Install tmussh for parallel SSH (requires mussh)
-sudo rpm -i tailscale-cli-helpers-tmussh-0.2.2-1.noarch.rpm
+sudo rpm -i tailscale-cli-helpers-mussh-0.2.3-1.noarch.rpm
 ```
 
 #### DEB (Ubuntu/Debian)
 ```bash
 # Main package
-sudo dpkg -i tailscale-cli-helpers_0.2.2-2_all.deb
+sudo dpkg -i tailscale-cli-helpers_0.2.3-2_all.deb
 
 # Optional: Install tmussh for parallel SSH (requires mussh)
-sudo dpkg -i tailscale-cli-helpers-tmussh_0.2.2-2_all.deb
+sudo dpkg -i tailscale-cli-helpers-mussh_0.2.3-2_all.deb
 ```
 
 #### Homebrew (macOS)
