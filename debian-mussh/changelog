@@ -1,3 +1,10 @@
+tailscale-cli-helpers-mussh (0.2.4-1) unstable; urgency=medium
+
+  * Version bump to match main package
+  * No functional changes
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 31 Jul 2025 12:30:00 +0000
+
 tailscale-cli-helpers-mussh (0.2.3-1) unstable; urgency=medium
 
   * Renamed package from tailscale-cli-helpers-tmussh to tailscale-cli-helpers-mussh

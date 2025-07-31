@@ -4,7 +4,7 @@
 #
 
 # Version information
-TAILSCALE_CLI_HELPERS_VERSION="0.2.3"
+TAILSCALE_CLI_HELPERS_VERSION="0.2.4"
 
 # Common help and version handling
 handle_common_args() {

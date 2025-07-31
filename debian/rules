@@ -5,29 +5,95 @@
 
 override_dh_auto_install:
 	# Create directories
-	mkdir -p debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers
-	mkdir -p debian/tailscale-cli-helpers/etc/profile.d
-	mkdir -p debian/tailscale-cli-helpers/etc/bash_completion.d
 	mkdir -p debian/tailscale-cli-helpers/usr/bin
+	mkdir -p debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/lib
+	mkdir -p debian/tailscale-cli-helpers/usr/share/man/man1
+	mkdir -p debian/tailscale-cli-helpers/etc/bash_completion.d
 	mkdir -p debian/tailscale-cli-helpers/usr/share/doc/tailscale-cli-helpers
 	
-	# Install main files to /usr/share
-	install -m 644 tailscale-ssh-helper.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/
-	install -m 644 tailscale-functions.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/
-	install -m 644 tailscale-completion.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/
+	# Install executables
+	install -m 755 bin/ts debian/tailscale-cli-helpers/usr/bin/
+	install -m 755 bin/tssh debian/tailscale-cli-helpers/usr/bin/
+	install -m 755 bin/tscp debian/tailscale-cli-helpers/usr/bin/
+	install -m 755 bin/tsftp debian/tailscale-cli-helpers/usr/bin/
+	install -m 755 bin/trsync debian/tailscale-cli-helpers/usr/bin/
+	install -m 755 bin/tssh_copy_id debian/tailscale-cli-helpers/usr/bin/
+	
+	# Install shared libraries
+	install -m 644 lib/tailscale-resolver.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/lib/
+	install -m 644 lib/common.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/lib/
+	
+	# Install man pages (excluding tmussh - separate package)
+	for man in man/man1/*.1; do \
+		if [ "$$(basename "$$man")" != "tmussh.1" ]; then \
+			gzip -c "$$man" > "debian/tailscale-cli-helpers/usr/share/man/man1/$$(basename "$$man").gz"; \
+		fi; \
+	done
+	
+	# Install setup script
 	install -m 755 setup.sh debian/tailscale-cli-helpers/usr/bin/tailscale-cli-helpers-setup
 	
-	# Create profile.d script for all shells
-	echo '# Tailscale CLI helpers' > debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
-	echo 'if [ -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
-	echo '    . /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
-	echo 'fi' >> debian/tailscale-cli-helpers/etc/profile.d/tailscale-cli-helpers.sh
+	# Create bash completion configuration
+	cat > debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers <<-'EOF'
+	# Bash completion for tailscale-cli-helpers
 	
-	# Create bash completion script
-	echo '# Tailscale CLI helpers bash completion' > debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
-	echo 'if [ -f /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh ]; then' >> debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
-	echo '    . /usr/share/tailscale-cli-helpers/tailscale-ssh-helper.sh' >> debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
-	echo 'fi' >> debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
+	# ts command dispatcher
+	_ts_completion() {
+	    local cur=$${COMP_WORDS[COMP_CWORD]}
+	    if [[ $$COMP_CWORD -eq 1 ]]; then
+	        # Complete with available subcommands and hostnames
+	        local subcommands="ssh scp sftp rsync ssh_copy_id mussh help"
+	        local hosts=$$(tailscale status --json 2>/dev/null | jq -r '.Peer[]?.HostName | select(. != null)' 2>/dev/null)
+	        COMPREPLY=($$(compgen -W "$$subcommands $$hosts" -- "$$cur"))
+	    else
+	        # Delegate to specific command completion
+	        local cmd=$${COMP_WORDS[1]}
+	        case $$cmd in
+	            ssh|scp|sftp|rsync|ssh_copy_id)
+	                # Complete with hostnames
+	                local hosts=$$(tailscale status --json 2>/dev/null | jq -r '.Peer[]?.HostName | select(. != null)' 2>/dev/null)
+	                COMPREPLY=($$(compgen -W "$$hosts" -- "$$cur"))
+	                ;;
+	        esac
+	    fi
+	}
+	
+	# Individual command completions
+	_tssh_completion() {
+	    local cur=$${COMP_WORDS[COMP_CWORD]}
+	    local hosts=$$(tailscale status --json 2>/dev/null | jq -r '.Peer[]?.HostName | select(. != null)' 2>/dev/null)
+	    COMPREPLY=($$(compgen -W "$$hosts" -- "$$cur"))
+	}
+	
+	_tscp_completion() {
+	    local cur=$${COMP_WORDS[COMP_CWORD]}
+	    if [[ "$$cur" == *:* ]]; then
+	        # Complete remote path after hostname:
+	        return
+	    else
+	        # Complete with hostnames
+	        local hosts=$$(tailscale status --json 2>/dev/null | jq -r '.Peer[]?.HostName | select(. != null)' 2>/dev/null)
+	        COMPREPLY=($$(compgen -W "$$hosts" -- "$$cur"))
+	    fi
+	}
+	
+	_trsync_completion() {
+	    local cur=$${COMP_WORDS[COMP_CWORD]}
+	    if [[ "$$cur" == -* ]]; then
+	        COMPREPLY=($$(compgen -W "-v -a -r -z --delete --exclude --dry-run" -- "$$cur"))
+	    else
+	        _tscp_completion
+	    fi
+	}
+	
+	# Register completions
+	complete -F _ts_completion ts
+	complete -F _tssh_completion tssh
+	complete -F _tscp_completion tscp
+	complete -F _tssh_completion tsftp
+	complete -F _trsync_completion trsync
+	complete -F _tssh_completion tssh_copy_id
+	EOF
 	
 	# Install documentation
 	install -m 644 README.md debian/tailscale-cli-helpers/usr/share/doc/tailscale-cli-helpers/

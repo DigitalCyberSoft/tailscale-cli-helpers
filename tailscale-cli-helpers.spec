@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.2.3
+Version:        0.2.4
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.2.3.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.2.4.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -23,7 +23,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.2.3
+%setup -q -n %{name}-0.2.4
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -42,8 +42,9 @@ install -m 755 bin/tsftp $RPM_BUILD_ROOT%{_bindir}/
 install -m 755 bin/trsync $RPM_BUILD_ROOT%{_bindir}/
 install -m 755 bin/tssh_copy_id $RPM_BUILD_ROOT%{_bindir}/
 
-# Install shared library
+# Install shared libraries
 install -m 644 lib/tailscale-resolver.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/lib/
+install -m 644 lib/common.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/lib/
 
 # Install man pages (excluding tmussh - separate package)
 for man in man/man1/*.1; do
@@ -225,6 +226,7 @@ fi
 %{_bindir}/trsync
 %{_bindir}/tssh_copy_id
 %{_datadir}/%{name}/lib/tailscale-resolver.sh
+%{_datadir}/%{name}/lib/common.sh
 %{_mandir}/man1/ts.1.gz
 %{_mandir}/man1/tssh.1.gz
 %{_mandir}/man1/tscp.1.gz
@@ -235,6 +237,11 @@ fi
 %{_bindir}/%{name}-setup
 
 %changelog
+* Thu Jul 31 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.4-1
+- Fixed missing common.sh library in package (fixes version display)
+- Updated Debian packaging to use new bin/ structure
+- Fixed Debian rules to install all required files
+
 * Thu Jul 31 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.3-1
 - Renamed tmussh package to mussh for clarity
 - Added Suggests for optional mussh extension package
