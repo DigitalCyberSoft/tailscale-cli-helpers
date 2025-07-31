@@ -58,7 +58,7 @@ install -m 755 setup.sh $RPM_BUILD_ROOT%{_bindir}/%{name}-setup
 
 # Install bash completion
 mkdir -p $RPM_BUILD_ROOT%{_sysconfdir}/bash_completion.d
-install -m 644 tailscale-completion.sh $RPM_BUILD_ROOT%{_sysconfdir}/bash_completion.d/%{name}
+install -m 644 bash-completion/tailscale-completion.sh $RPM_BUILD_ROOT%{_sysconfdir}/bash_completion.d/%{name}
 
 # Install documentation
 install -m 644 README.md $RPM_BUILD_ROOT%{_docdir}/%{name}/

@@ -62,7 +62,7 @@ detect_os() {
 # Install bash completion file
 install_bash_completion() {
     local dest_file="$1"
-    local source_file="tailscale-completion.sh"
+    local source_file="bash-completion/tailscale-completion.sh"
     
     # Try to find the completion file
     if [[ -f "$source_file" ]]; then

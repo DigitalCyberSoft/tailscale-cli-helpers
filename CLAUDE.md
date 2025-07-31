@@ -33,8 +33,8 @@ mkdir -p ~/rpmbuild/{SOURCES,SPECS,BUILD,RPMS,SRPMS}
 
 # Create source tarball (from project directory)
 tar czf ~/rpmbuild/SOURCES/vX.Y.Z.tar.gz --transform 's,^,tailscale-cli-helpers-X.Y.Z/,' \
-    bin/ lib/ man/ \
-    *.spec *.sh *.md LICENSE VERSION tailscale-completion.sh
+    bin/ lib/ man/ bash-completion/ \
+    *.spec *.sh *.md LICENSE VERSION
 
 # Alternative: Download from GitHub (for released versions)
 # wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/vX.Y.Z.tar.gz -O ~/rpmbuild/SOURCES/vX.Y.Z.tar.gz
@@ -105,7 +105,8 @@ gh release create vX.Y.Z --title "Title" --notes "Notes" package.rpm package.deb
 - `bin/` - Executable scripts (ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tmussh)
 - `lib/` - Shared libraries (common.sh, tailscale-resolver.sh)
 - `man/man1/` - Man pages for all commands
-- `tailscale-completion.sh` - Tab completion system
+- `bash-completion/` - Shell completion files
+  - `tailscale-completion.sh` - Tab completion system
 - `setup.sh` - Universal installer
 - `tailscale-cli-helpers.spec` - Main RPM packaging
 - `tailscale-cli-helpers-mussh.spec` - mussh RPM packaging

@@ -34,7 +34,7 @@ override_dh_auto_install:
 	install -m 755 setup.sh debian/tailscale-cli-helpers/usr/bin/tailscale-cli-helpers-setup
 	
 	# Install bash completion
-	install -m 644 tailscale-completion.sh debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
+	install -m 644 bash-completion/tailscale-completion.sh debian/tailscale-cli-helpers/etc/bash_completion.d/tailscale-cli-helpers
 	
 	# Install documentation
 	install -m 644 README.md debian/tailscale-cli-helpers/usr/share/doc/tailscale-cli-helpers/
