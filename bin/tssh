@@ -3,7 +3,6 @@
 # tssh - Tailscale SSH helper
 # Quick SSH connections to Tailscale nodes with hostname completion
 #
-# Built by Digital Cyber Soft
 
 # Detect shell and set compatibility options
 if [ -n "$ZSH_VERSION" ]; then

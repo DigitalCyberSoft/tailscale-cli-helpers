@@ -6,8 +6,8 @@ Comprehensive Bash/Zsh functions for secure SSH, file transfer, and parallel ope
 
 ```bash
 # One-line install
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.1.tar.gz
-tar -xzf v0.2.1.tar.gz && cd tailscale-cli-helpers-0.2.1
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.2.tar.gz
+tar -xzf v0.2.2.tar.gz && cd tailscale-cli-helpers-0.2.2
 ./setup.sh
 
 # Then use commands
@@ -48,6 +48,23 @@ ts ssh_copy_id myhost           # Via dispatcher
 - **Conditional features**: Only enables commands when required tools are installed
 - **Clean completion**: Internal functions hidden from tab completion
 
+## 🆕 What's New in v0.2.2
+
+### Modular Package Architecture
+- **Split packaging**: `tmussh` now available as separate optional package
+- **Better dependency management**: Install only what you need
+- **RPM/DEB packages**: Professional packaging for enterprise deployments
+
+### Enhanced Project Structure
+- **Organized layout**: Separated into `bin/`, `lib/`, and `man/` directories
+- **Shared libraries**: Common code in `lib/common.sh` and `lib/tailscale-resolver.sh`
+- **Comprehensive documentation**: Added `CLAUDE.md` development guide
+
+### Improved Installation
+- **Package migration**: Smooth upgrade path from older versions
+- **Post-install scripts**: Automatic cleanup of legacy installations
+- **Enhanced setup.sh**: Better error handling and platform detection
+
 ## 📋 Requirements
 
 ### Core Requirements
@@ -70,9 +87,9 @@ ts ssh_copy_id myhost           # Via dispatcher
 
 ```bash
 # Download latest release
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.1.tar.gz
-tar -xzf v0.2.1.tar.gz
-cd tailscale-cli-helpers-0.2.1
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.2.tar.gz
+tar -xzf v0.2.2.tar.gz
+cd tailscale-cli-helpers-0.2.2
 
 # Install for current user
 ./setup.sh
@@ -82,6 +99,31 @@ sudo ./setup.sh --system
 
 # Test installation
 ./tests/test-both-shells.sh
+```
+
+### 📦 Package Installation
+
+#### RPM (Fedora/RHEL/CentOS)
+```bash
+# Main package
+sudo rpm -i tailscale-cli-helpers-0.2.2-1.noarch.rpm
+
+# Optional: Install tmussh for parallel SSH (requires mussh)
+sudo rpm -i tailscale-cli-helpers-tmussh-0.2.2-1.noarch.rpm
+```
+
+#### DEB (Ubuntu/Debian)
+```bash
+# Main package
+sudo dpkg -i tailscale-cli-helpers_0.2.2-2_all.deb
+
+# Optional: Install tmussh for parallel SSH (requires mussh)
+sudo dpkg -i tailscale-cli-helpers-tmussh_0.2.2-2_all.deb
+```
+
+#### Homebrew (macOS)
+```bash
+brew install https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/tailscale-cli-helpers.rb
 ```
 
 ### Manual Install (Local Development)

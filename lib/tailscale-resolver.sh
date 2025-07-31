@@ -4,7 +4,6 @@
 #
 # This file is sourced by other scripts to provide common resolution logic
 #
-# Built by Digital Cyber Soft
 
 # Security: Input validation
 _validate_hostname() {

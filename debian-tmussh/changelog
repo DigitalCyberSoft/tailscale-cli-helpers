@@ -1,9 +1,8 @@
-tailscale-cli-helpers-tmussh (0.2.1-1) unstable; urgency=medium
+tailscale-cli-helpers-tmussh (0.2.2-1) unstable; urgency=medium
 
   * Initial separate package for tmussh
   * Requires mussh and main tailscale-cli-helpers package
   * Provides parallel SSH execution on Tailscale nodes
   * Supports wildcard patterns for host selection
-  * Built by Digital Cyber Soft
 
  -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 31 Jul 2025 12:00:00 +0000

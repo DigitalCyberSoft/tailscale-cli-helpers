@@ -1,11 +1,38 @@
+tailscale-cli-helpers (0.2.2-1) unstable; urgency=medium
+
+  * Split tmussh into separate optional package for better dependency management
+  * Added comprehensive development documentation (CLAUDE.md)
+  * Implemented Debian package post-install migration script
+  * Restructured project with bin/, lib/, and man/ directories
+  * Updated all packaging specs for modular distribution
+  * Enhanced setup.sh with improved error handling and platform detection
+  * Updated test suites for better coverage and reliability
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 31 Jul 2025 00:00:00 +0000
+
 tailscale-cli-helpers (0.2.1-1) unstable; urgency=medium
 
-  * Added dedicated multi-host pattern matching for tmussh with wildcard support
-  * Fixed tmussh wildcard pattern matching (e.g., "tmussh -h web-*")
-  * Created tssh_copy_id command and removed ssh-copy-id alias override
-  * Enhanced completion system with helper functions to reduce code duplication
+  * Major security hardening with input validation and injection protection
+  * Added tsftp command for SFTP support as modern alternative to SCP
+  * Enhanced tab completion with version-aware features and Levenshtein sorting
+  * Fixed internal functions appearing in tab completion
+  * Refactored shared code to eliminate ~250 lines of duplication
+  * Added 40+ security tests covering all attack vectors
+  * Improved tmussh with multi-host functionality and pattern support
 
- -- Digital Cyber Soft <support@digitalcybersoft.com>  Fri, 24 Jul 2025 00:00:00 +0000
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Wed, 24 Jul 2025 00:00:00 +0000
+
+tailscale-cli-helpers (0.2.0-1) unstable; urgency=medium
+
+  * MAJOR: Refactored from shell functions to standalone executables
+  * Commands now immediately available after installation (no shell restart needed)
+  * Added complete man pages for all commands
+  * Enhanced bash completions with smart hostname resolution
+  * Added migration logic to clean up old function-based installations
+  * All commands now installed to /usr/bin for immediate availability
+  * Maintained all existing functionality: fuzzy matching, security, multi-shell support
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Wed, 24 Jul 2025 00:00:00 +0000
 
 tailscale-cli-helpers (0.1.3-1) unstable; urgency=medium
 

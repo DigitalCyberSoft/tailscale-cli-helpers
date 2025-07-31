@@ -2,10 +2,9 @@
 #
 # common.sh - Shared utilities for Tailscale CLI helpers
 #
-# Built by Digital Cyber Soft
 
 # Version information
-TAILSCALE_CLI_HELPERS_VERSION="0.2.1"
+TAILSCALE_CLI_HELPERS_VERSION="0.2.2"
 
 # Common help and version handling
 handle_common_args() {

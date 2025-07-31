@@ -3,7 +3,6 @@
 # tssh_copy_id - Tailscale SSH key copy helper
 # ssh-copy-id with Tailscale hostname resolution
 #
-# Built by Digital Cyber Soft
 
 # Detect shell and set compatibility options
 if [ -n "$ZSH_VERSION" ]; then

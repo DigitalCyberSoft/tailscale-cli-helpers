@@ -1,6 +1,6 @@
 # Development Guide
 
-**IMPORTANT: Never mention Claude in commit messages, release notes, or any user-facing documentation. Always use "Built by Digital Cyber Soft" instead.**
+**IMPORTANT: Never mention Claude in commit messages, release notes, or any user-facing documentation.**
 
 ## Version Updates
 
@@ -46,17 +46,17 @@ rpmbuild -ba ~/rpmbuild/SPECS/tailscale-cli-helpers-tmussh.spec
 
 # Copy to packages directory
 mkdir -p packages
-cp ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.fc42.noarch.rpm packages/
-cp ~/rpmbuild/SRPMS/tailscale-cli-helpers-X.Y.Z-1.fc42.src.rpm packages/
-cp ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-tmussh-X.Y.Z-1.fc42.noarch.rpm packages/
-cp ~/rpmbuild/SRPMS/tailscale-cli-helpers-tmussh-X.Y.Z-1.fc42.src.rpm packages/
+cp ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.noarch.rpm packages/
+cp ~/rpmbuild/SRPMS/tailscale-cli-helpers-X.Y.Z-1.src.rpm packages/
+cp ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-tmussh-X.Y.Z-1.noarch.rpm packages/
+cp ~/rpmbuild/SRPMS/tailscale-cli-helpers-tmussh-X.Y.Z-1.src.rpm packages/
 ```
 
 ### DEB Package
 ```bash
-# Convert from RPM using alien
-fakeroot alien --to-deb ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.fc42.noarch.rpm
-fakeroot alien --to-deb ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-tmussh-X.Y.Z-1.fc42.noarch.rpm
+# Convert from RPM using alien (--scripts preserves post-install scripts)
+fakeroot alien --scripts --to-deb ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-X.Y.Z-1.noarch.rpm
+fakeroot alien --scripts --to-deb ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-tmussh-X.Y.Z-1.noarch.rpm
 
 # Copy to packages directory
 mv tailscale-cli-helpers_X.Y.Z-2_all.deb packages/
@@ -85,17 +85,13 @@ Run tests after changes:
 ```bash
 # Standard workflow
 git add -A
-git commit -m "Description
-
-Built by Digital Cyber Soft"
+git commit -m "Description"
 git push origin main
 
 # Release workflow  
 git tag vX.Y.Z
 git push origin vX.Y.Z
-gh release create vX.Y.Z --title "Title" --notes "Notes
-
-Built by Digital Cyber Soft" package.rpm package.deb
+gh release create vX.Y.Z --title "Title" --notes "Notes" package.rpm package.deb
 ```
 
 ## File Structure

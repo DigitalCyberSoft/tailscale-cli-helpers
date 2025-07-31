@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.2.1
+Version:        0.2.2
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.2.1.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.2.2.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -20,7 +20,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.2.1
+%setup -q -n %{name}-0.2.2
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -232,7 +232,25 @@ fi
 %{_bindir}/%{name}-setup
 
 %changelog
-* Thu Jul 31 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.1-1
+* Thu Jul 31 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.2-1
+- Split tmussh into separate optional package for better dependency management
+- Added comprehensive development documentation (CLAUDE.md)
+- Implemented Debian package post-install migration script
+- Restructured project with bin/, lib/, and man/ directories
+- Updated all packaging specs for modular distribution
+- Enhanced setup.sh with improved error handling and platform detection
+- Updated test suites for better coverage and reliability
+
+* Wed Jul 24 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.1-1
+- Major security hardening with input validation and injection protection
+- Added tsftp command for SFTP support as modern alternative to SCP
+- Enhanced tab completion with version-aware features and Levenshtein sorting
+- Fixed internal functions appearing in tab completion
+- Refactored shared code to eliminate ~250 lines of duplication
+- Added 40+ security tests covering all attack vectors
+- Improved tmussh with multi-host functionality and pattern support
+
+* Wed Jul 24 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.2.0-1
 - MAJOR: Refactored from shell functions to standalone executables
 - Commands now immediately available after installation (no shell restart needed)
 - Added complete man pages for all commands

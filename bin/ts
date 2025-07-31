@@ -3,7 +3,6 @@
 # ts - Tailscale CLI dispatcher
 # Multi-purpose command for Tailscale operations
 #
-# Built by Digital Cyber Soft
 
 # Detect shell and set compatibility options
 if [ -n "$ZSH_VERSION" ]; then

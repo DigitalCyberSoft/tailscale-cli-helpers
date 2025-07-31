@@ -3,7 +3,6 @@
 # tscp - Tailscale SCP helper
 # SCP with Tailscale hostname resolution
 #
-# Built by Digital Cyber Soft
 
 # Detect shell and set compatibility options
 if [ -n "$ZSH_VERSION" ]; then
