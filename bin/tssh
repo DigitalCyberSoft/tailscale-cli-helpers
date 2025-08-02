@@ -240,7 +240,7 @@ main() {
         # Get selection
         local selection
         if [ -t 0 ]; then
-            read -p "Select host number (1-${#sorted_hosts[@]}): " selection
+            read -p "Select host number (1-${#sorted_hosts[@]}) [1]: " selection
         else
             echo "Non-interactive mode, selecting first match"
             selection=1
