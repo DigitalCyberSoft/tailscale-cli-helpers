@@ -74,6 +74,7 @@ _check_available_commands() {
     # Always available
     cmds+=("ssh")
     cmds+=("ssh_copy_id")
+    cmds+=("exit")
     
     # Check optional commands
     command -v scp >/dev/null 2>&1 && cmds+=("scp")
@@ -208,6 +209,15 @@ _ts_complete() {
                 else
                     COMPREPLY=($(compgen -W "$opts" -- "$cur"))
                 fi
+            fi
+            ;;
+        exit)
+            # Exit node manager options
+            local options="--help --version --list"
+            if [[ "$_IS_ZSH" == "true" ]]; then
+                compadd $(echo "$options")
+            else
+                COMPREPLY=($(compgen -W "$options" -- "$cur"))
             fi
             ;;
     esac
@@ -369,6 +379,26 @@ _tmussh_complete() {
     esac
 }
 
+# Completion for tsexit command
+_tsexit_complete() {
+    local cur
+    
+    if [[ "$_IS_ZSH" == "true" ]]; then
+        cur="${words[CURRENT]}"
+    else
+        cur="${COMP_WORDS[COMP_CWORD]}"
+    fi
+    
+    # Options for tsexit
+    local options="--help --version --list"
+    
+    if [[ "$_IS_ZSH" == "true" ]]; then
+        compadd $(echo "$options")
+    else
+        COMPREPLY=($(compgen -W "$options" -- "$cur"))
+    fi
+}
+
 # Register completions
 if [[ "$_IS_ZSH" == "true" ]]; then
     # Zsh completion setup
@@ -379,6 +409,7 @@ if [[ "$_IS_ZSH" == "true" ]]; then
     compdef _trsync_complete trsync
     compdef _tssh_copy_id_complete tssh_copy_id
     compdef _tmussh_complete tmussh
+    compdef _tsexit_complete tsexit
 else
     # Bash completion setup
     complete -F _ts_complete ts
@@ -388,4 +419,5 @@ else
     complete -F _trsync_complete trsync
     complete -F _tssh_copy_id_complete tssh_copy_id
     complete -F _tmussh_complete tmussh
+    complete -F _tsexit_complete tsexit
 fi

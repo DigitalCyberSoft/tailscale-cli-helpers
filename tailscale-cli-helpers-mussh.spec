@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers-mussh
-Version:        0.3.0
+Version:        0.3.1
 Release:        1
 Summary:        Parallel SSH execution on Tailscale nodes using mussh
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.0.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.1.tar.gz
 
 Requires:       tailscale-cli-helpers >= 0.2.0
 Requires:       mussh
@@ -31,7 +31,7 @@ Features:
 - Integration with mussh for robust parallel execution
 
 %prep
-%setup -q -n tailscale-cli-helpers-0.3.0
+%setup -q -n tailscale-cli-helpers-0.3.1
 
 %install
 rm -rf $RPM_BUILD_ROOT

@@ -1,0 +1,122 @@
+.TH TSEXIT 1 "January 2025" "tailscale-cli-helpers 0.3.1" "User Commands"
+.SH NAME
+tsexit \- Tailscale Exit Node Manager
+.SH SYNOPSIS
+.B tsexit
+[\fIOPTIONS\fR]
+.br
+.B ts exit
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B tsexit
+provides an interactive menu for managing Tailscale exit nodes with intelligent country grouping for Mullvad nodes. The tool automatically detects available exit nodes and presents them in an organized, user-friendly interface.
+.PP
+The tool supports both arrow-key navigation (when terminal capabilities allow) and numbered selection for maximum compatibility across different environments.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Display help message and exit.
+.TP
+.BR \-V ", " \-\-version
+Display version information and exit.
+.TP
+.BR \-l ", " \-\-list
+List available exit nodes without interactive menu.
+.SH FEATURES
+.SS Interactive Menu
+The tool provides two interface modes based on terminal capabilities:
+.TP
+.B ANSI Mode
+When the terminal supports ANSI escape codes and cursor movement, provides arrow key navigation with visual indicators.
+.TP
+.B Select Mode
+Falls back to numbered menu selection for maximum compatibility with all terminals.
+.SS Exit Node Categories
+.TP
+.B Personal/Tailnet Devices
+Your own devices and those shared within your Tailnet that can act as exit nodes.
+.TP
+.B Mullvad Exit Nodes
+When connected to Mullvad through Tailscale, displays Mullvad VPN servers grouped by country with city information.
+.SS Navigation (ANSI Mode)
+.TP
+.B Arrow Keys (↑/↓)
+Navigate through the menu options.
+.TP
+.B Enter
+Select and apply the highlighted exit node.
+.TP
+.B q
+Quit without making changes.
+.TP
+.B r
+Refresh the exit node list.
+.SS Navigation (Select Mode)
+.TP
+.B Number
+Enter the number corresponding to your choice.
+.TP
+.B q
+Quit without making changes.
+.SH EXAMPLES
+.SS Interactive exit node selection:
+.nf
+$ tsexit
+.fi
+.SS List available exit nodes:
+.nf
+$ tsexit --list
+.fi
+.SS Using through ts dispatcher:
+.nf
+$ ts exit
+.fi
+.SH MULLVAD INTEGRATION
+The tool automatically detects if Mullvad exit nodes are available through your Tailscale connection. When Mullvad nodes are present, they are:
+.IP \(bu 2
+Grouped by country for easy navigation
+.IP \(bu 2
+Sorted alphabetically by country name
+.IP \(bu 2
+Display city information when available
+.IP \(bu 2
+Show node counts per country
+.PP
+If no Mullvad nodes are detected, the tool will only show personal/Tailnet devices and provide information about connecting to Mullvad if desired.
+.SH REQUIREMENTS
+.IP \(bu 2
+Tailscale must be installed and running
+.IP \(bu 2
+jq must be installed for JSON parsing
+.IP \(bu 2
+User must have permission to run tailscale commands
+.PP
+Note: Setting exit nodes does not require sudo privileges.
+.SH EXIT STATUS
+.TP
+.B 0
+Successful execution
+.TP
+.B 1
+Error occurred (Tailscale not running, dependencies missing, etc.)
+.SH FILES
+.TP
+.I /usr/local/bin/tsexit
+Default installation location for user installation
+.TP
+.I /usr/bin/tsexit
+System-wide installation location
+.SH ENVIRONMENT
+.TP
+.B TERM
+Used to detect terminal capabilities for interface selection.
+.SH SEE ALSO
+.BR ts (1),
+.BR tssh (1),
+.BR tailscale (1)
+.SH BUGS
+Report bugs at: https://github.com/digitalcybersoft/tailscale-cli-helpers/issues
+.SH AUTHOR
+Part of the tailscale-cli-helpers project.
+.SH COPYRIGHT
+This is free software; see the source for copying conditions.

@@ -1,3 +1,15 @@
+tailscale-cli-helpers (0.3.1-1) unstable; urgency=medium
+
+  * Added tsexit command for interactive exit node management
+  * Supports Mullvad multi-country exit nodes with country grouping
+  * Features arrow key navigation and automatic sudo elevation
+  * Countries collapsed by default, expandable with Enter or right arrow
+  * Jump-to-country feature using letter keys
+  * Automatic detection of Mullvad subscription based on node patterns
+  * Full DNS name display with alphabetical sorting within countries
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Mon, 18 Aug 2025 10:30:00 +0800
+
 tailscale-cli-helpers (0.3.0-1) unstable; urgency=medium
 
   * Restored deleted functionality from modular refactoring

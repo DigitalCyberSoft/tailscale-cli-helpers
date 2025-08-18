@@ -18,6 +18,7 @@ override_dh_auto_install:
 	install -m 755 bin/tsftp debian/tailscale-cli-helpers/usr/bin/
 	install -m 755 bin/trsync debian/tailscale-cli-helpers/usr/bin/
 	install -m 755 bin/tssh_copy_id debian/tailscale-cli-helpers/usr/bin/
+	install -m 755 bin/tsexit debian/tailscale-cli-helpers/usr/bin/
 	
 	# Install shared libraries
 	install -m 644 lib/tailscale-resolver.sh debian/tailscale-cli-helpers/usr/share/tailscale-cli-helpers/lib/

@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.3.0
+Version:        0.3.1
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.0.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.1.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -23,7 +23,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.3.0
+%setup -q -n %{name}-0.3.1
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -41,6 +41,7 @@ install -m 755 bin/tscp $RPM_BUILD_ROOT%{_bindir}/
 install -m 755 bin/tsftp $RPM_BUILD_ROOT%{_bindir}/
 install -m 755 bin/trsync $RPM_BUILD_ROOT%{_bindir}/
 install -m 755 bin/tssh_copy_id $RPM_BUILD_ROOT%{_bindir}/
+install -m 755 bin/tsexit $RPM_BUILD_ROOT%{_bindir}/
 
 # Install shared libraries
 install -m 644 lib/tailscale-resolver.sh $RPM_BUILD_ROOT%{_datadir}/%{name}/lib/
@@ -91,6 +92,7 @@ fi
 %{_bindir}/tsftp
 %{_bindir}/trsync
 %{_bindir}/tssh_copy_id
+%{_bindir}/tsexit
 %{_datadir}/%{name}/lib/tailscale-resolver.sh
 %{_datadir}/%{name}/lib/common.sh
 %{_mandir}/man1/ts.1.gz
@@ -99,10 +101,18 @@ fi
 %{_mandir}/man1/tsftp.1.gz
 %{_mandir}/man1/trsync.1.gz
 %{_mandir}/man1/tssh_copy_id.1.gz
+%{_mandir}/man1/tsexit.1.gz
 %{_sysconfdir}/bash_completion.d/%{name}
 %{_bindir}/%{name}-setup
 
 %changelog
+* Mon Aug 18 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.1-1
+- Added tsexit command for interactive exit node management
+- Supports Mullvad multi-country exit nodes with country grouping
+- Features arrow key navigation and automatic sudo elevation
+- Countries collapsed by default, expandable with Enter or right arrow
+- Jump-to-country feature using letter keys
+
 * Thu Jul 31 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.0-1
 - Restored functionality that was accidentally deleted during modular refactoring
 - Restored multiple host selection menu with fuzzy matching

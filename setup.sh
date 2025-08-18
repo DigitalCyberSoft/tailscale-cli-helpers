@@ -173,7 +173,7 @@ install_user() {
     validate_destination_dir "$completion_dir" || return 1
     
     # Install executables (excluding tmussh - optional)
-    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id")
+    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tsexit")
     for cmd in "${commands[@]}"; do
         if [[ -f "$SCRIPT_DIR/bin/$cmd" ]]; then
             install -m 755 "$SCRIPT_DIR/bin/$cmd" "$bin_dir/"
@@ -265,7 +265,7 @@ install_system() {
     validate_destination_dir "$completion_dir" || return 1
     
     # Install executables
-    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id")
+    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tsexit")
     for cmd in "${commands[@]}"; do
         if [[ -f "$SCRIPT_DIR/bin/$cmd" ]]; then
             install -m 755 "$SCRIPT_DIR/bin/$cmd" "$bin_dir/"
@@ -320,7 +320,7 @@ uninstall() {
         echo "Removing user installation..."
         
         # Remove executables
-        local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh")
+        local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh" "tsexit")
         for cmd in "${commands[@]}"; do
             [[ -f "$HOME/.local/bin/$cmd" ]] && rm -f "$HOME/.local/bin/$cmd" && echo "Removed: $cmd"
         done
@@ -353,7 +353,7 @@ uninstall() {
         
         echo "Removing system-wide installation..."
         
-        local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh")
+        local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh" "tsexit")
         for cmd in "${commands[@]}"; do
             [[ -f "/usr/bin/$cmd" ]] && rm -f "/usr/bin/$cmd" && echo "Removed: $cmd"
         done

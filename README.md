@@ -17,6 +17,7 @@ tsftp myhost                    # Secure file transfer (SFTP)
 trsync -av dir/ myhost:/        # Sync directories (rsync)
 tmussh -h "web-*" -c "uptime"   # Parallel SSH execution
 tssh_copy_id myhost             # Copy SSH keys
+tsexit                          # Manage exit nodes interactively
 ts ssh_copy_id myhost           # Via dispatcher
 ```
 
@@ -35,6 +36,7 @@ ts ssh_copy_id myhost           # Via dispatcher
 - **Conditional loading**: Commands only load when underlying tools (scp, sftp, rsync) are available
 
 ### 🚀 Advanced Features
+- **Exit Node Management**: `tsexit` provides interactive menu for managing Tailscale exit nodes with Mullvad country grouping
 - **Parallel SSH**: `tmussh` for executing commands on multiple hosts simultaneously (requires mussh)
 - **Version-aware completion**: Detects mussh version and offers appropriate parameters
 - **Wildcard support**: Use patterns like `"web-*"` for multi-host operations
@@ -388,6 +390,27 @@ tsftp -i ~/.ssh/custom_key hostname      # Custom identity file
 # sftp> get /remote/file.txt ./
 # sftp> ls -la
 # sftp> quit
+```
+
+### 🌍 Exit Node Management
+
+Interactive menu for managing Tailscale exit nodes with automatic Mullvad detection:
+
+```bash
+# Interactive exit node selection
+tsexit                                   # Arrow-key navigation menu
+
+# Via ts dispatcher
+ts exit                                  # Same functionality
+
+# List available exit nodes
+tsexit --list                           # Non-interactive listing
+
+# Features:
+# - Automatic Mullvad node detection and country grouping
+# - Personal/Tailnet devices in separate section
+# - Current exit node indicator
+# - Works without Mullvad subscription (shows only personal devices)
 ```
 
 ## 🔧 How It Works

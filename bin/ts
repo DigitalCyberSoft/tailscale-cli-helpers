@@ -40,6 +40,7 @@ show_help() {
     echo "  ts sftp <hostname>               Start SFTP session"
     echo "  ts rsync [options] <src> <dst>   Sync files via rsync"
     echo "  ts mussh [options]               Run mussh with Tailscale hosts"
+    echo "  ts exit                          Manage Tailscale exit nodes"
     echo "  ts help                          Show this help"
     echo ""
     echo "Options:"
@@ -124,6 +125,10 @@ main() {
                 echo "Or: sudo apt install tailscale-cli-helpers-tmussh" >&2
                 exit 1
             fi
+            ;;
+        exit)
+            # Exit node manager
+            exec "$SCRIPT_DIR/tsexit" "$@"
             ;;
         *)
             # Default action: treat first argument as hostname for SSH

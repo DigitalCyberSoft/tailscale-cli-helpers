@@ -1,0 +1,853 @@
+#!/usr/bin/env bash
+#
+# tsexit - Tailscale Exit Node Manager
+# Interactive menu for managing Tailscale exit nodes with country grouping
+#
+
+# Detect shell and set compatibility options
+if [ -n "$ZSH_VERSION" ]; then
+    emulate -L bash
+    setopt BASH_REMATCH
+    setopt KSH_ARRAYS
+fi
+
+# Enable safety features
+set -o pipefail
+IFS=$' \t\n'
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+fi
+
+# Script info
+SCRIPT_NAME="tsexit"
+SCRIPT_DESCRIPTION="Tailscale Exit Node Manager"
+
+# Handle common arguments (version, help)
+handle_common_args "$SCRIPT_NAME" "$SCRIPT_DESCRIPTION" "$@"
+
+# Check dependencies
+if ! command -v tailscale >/dev/null 2>&1; then
+    echo "Error: tailscale CLI not found" >&2
+    exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required but not installed" >&2
+    exit 1
+fi
+
+# Detect interface capabilities
+USE_ANSI=false
+if [[ -t 1 ]] && [[ "${TERM}" != "dumb" ]] && command -v tput >/dev/null 2>&1; then
+    # Check if terminal supports cursor movement
+    if tput cup 0 0 >/dev/null 2>&1; then
+        USE_ANSI=true
+    fi
+fi
+
+# Colors and formatting (when supported)
+if [[ "$USE_ANSI" == true ]]; then
+    BOLD=$(tput bold 2>/dev/null || echo "")
+    RESET=$(tput sgr0 2>/dev/null || echo "")
+    GREEN=$(tput setaf 2 2>/dev/null || echo "")
+    YELLOW=$(tput setaf 3 2>/dev/null || echo "")
+    BLUE=$(tput setaf 4 2>/dev/null || echo "")
+    RED=$(tput setaf 1 2>/dev/null || echo "")
+    CYAN=$(tput setaf 6 2>/dev/null || echo "")
+    DIM=$(tput dim 2>/dev/null || echo "")
+    # Better visibility on dark backgrounds
+    HIGHLIGHT_BG=$(tput setab 4 2>/dev/null || echo "")  # Blue background
+    HIGHLIGHT_FG=$(tput setaf 7 2>/dev/null || echo "")  # White text
+else
+    BOLD=""
+    RESET=""
+    GREEN=""
+    YELLOW=""
+    BLUE=""
+    RED=""
+    CYAN=""
+    DIM=""
+    HIGHLIGHT_BG=""
+    HIGHLIGHT_FG=""
+fi
+
+# Globe icon for countries (since emoji flags may not be supported)
+COUNTRY_ICON="🌍"
+
+# Global variables
+declare -a menu_items  # Display text for each item
+declare -a menu_values # Actual values (hostnames or special values)
+declare -a menu_types  # Type of each item: NODE, COUNTRY, HEADER, etc.
+declare -A expanded_countries  # Track which countries are expanded
+current_exit_node=""
+current_exit_node_name=""
+selected_index=0
+search_buffer=""
+last_key_time=0
+status_json=""  # Cache the status JSON
+
+# Show loading indicator
+show_loading() {
+    local msg="$1"
+    if [[ "$USE_ANSI" == true ]]; then
+        echo -ne "${YELLOW}⏳ ${msg}...${RESET}\r"
+    else
+        echo -n "$msg..."
+    fi
+}
+
+# Clear loading indicator
+clear_loading() {
+    if [[ "$USE_ANSI" == true ]]; then
+        echo -ne "\033[2K\r"  # Clear line
+    else
+        echo ""
+    fi
+}
+
+# Get current exit node status
+get_current_exit_node() {
+    show_loading "Loading Tailscale status"
+    
+    # Get and cache the status JSON
+    status_json=$(tailscale status --json 2>/dev/null) || {
+        clear_loading
+        return 1
+    }
+    
+    # Get current exit node by looking for ExitNode: true flag
+    local exit_info
+    exit_info=$(echo "$status_json" | jq -r '
+        .Peer | to_entries[] | select(.value.ExitNode == true) | .value | .DNSName // .HostName // "Unknown"
+    ' 2>/dev/null)
+    
+    if [[ -z "$exit_info" ]] || [[ "$exit_info" == "null" ]]; then
+        current_exit_node="None"
+        current_exit_node_name="None"
+    else
+        # Remove trailing dot from DNS name
+        exit_info="${exit_info%.}"
+        current_exit_node="$exit_info"
+        current_exit_node_name="$exit_info"
+    fi
+    
+    clear_loading
+}
+
+# Build menu structure from JSON
+build_menu() {
+    menu_items=()
+    menu_values=()
+    menu_types=()
+    
+    declare -A country_nodes
+    local personal_nodes=()
+    
+    # Add None option
+    menu_items+=("◯ None (Disable exit node)")
+    menu_values+=("")
+    menu_types+=("NODE")
+    
+    # Mark current if None
+    if [[ "$current_exit_node" == "None" ]]; then
+        menu_items[0]="● None (Disable exit node)"
+    fi
+    
+    # Parse exit nodes from JSON - single jq call for efficiency
+    if [[ -n "$status_json" ]]; then
+        # Get all exit node capable peers in one go
+        local exit_nodes
+        exit_nodes=$(echo "$status_json" | jq -r '
+            .Peer[] | 
+            select(.ExitNodeOption == true) | 
+            "\(.HostName // .DNSName // "unknown")|\(.DNSName // "")|\(.Location.Country // "")|\(.Location.City // "")"
+        ' 2>/dev/null)
+        
+        # Process each node
+        while IFS='|' read -r hostname dnsname country city; do
+            # Skip invalid entries
+            [[ "$hostname" == "unknown" ]] && continue
+            [[ -z "$hostname" ]] && continue
+            
+            # Use full DNS name if available, remove trailing dot
+            local display_name="$hostname"
+            if [[ -n "$dnsname" ]] && [[ "$dnsname" != "$hostname" ]]; then
+                # Remove trailing dot from DNS name
+                display_name="${dnsname%.}"
+            fi
+            
+            # Categorize nodes - check DNSName for mullvad domain or hostname pattern
+            if [[ "$dnsname" == *.mullvad.ts.net ]] || [[ "$hostname" =~ ^[a-z]{2}-[a-z]{3}-wg-[0-9]+$ ]]; then
+                # It's a Mullvad node (pattern: country-city-wg-number)
+                if [[ -n "$country" ]] && [[ "$country" != "" ]]; then
+                    # Store by country with full DNS name
+                    if [[ -n "${country_nodes[$country]}" ]]; then
+                        country_nodes["$country"]+=";"
+                    fi
+                    country_nodes["$country"]+="${display_name}|${city}"
+                    
+                    # Auto-expand country if this is the current exit node
+                    if [[ "$display_name" == "$current_exit_node_name" ]]; then
+                        expanded_countries["$country"]=1
+                    fi
+                fi
+            else
+                # Personal/Tailnet device - use full DNS name
+                personal_nodes+=("$display_name")
+            fi
+        done <<< "$exit_nodes"
+    fi
+    
+    # Add personal devices section
+    if [[ ${#personal_nodes[@]} -gt 0 ]]; then
+        menu_items+=("")
+        menu_values+=("SEPARATOR")
+        menu_types+=("SEPARATOR")
+        
+        menu_items+=("${CYAN}Personal/Tailnet Devices${RESET}")
+        menu_values+=("HEADER")
+        menu_types+=("HEADER")
+        
+        for hostname in "${personal_nodes[@]}"; do
+            local marker="◯"
+            
+            # Mark current node
+            if [[ "$hostname" == "$current_exit_node_name" ]]; then
+                marker="●"
+            fi
+            
+            menu_items+=("  $marker $hostname")
+            menu_values+=("$hostname")
+            menu_types+=("NODE")
+        done
+    fi
+    
+    # Add Mullvad nodes section (if available)
+    if [[ ${#country_nodes[@]} -gt 0 ]]; then
+        menu_items+=("")
+        menu_values+=("SEPARATOR")
+        menu_types+=("SEPARATOR")
+        
+        menu_items+=("${CYAN}Mullvad Exit Nodes${RESET}")
+        menu_values+=("HEADER")
+        menu_types+=("HEADER")
+        
+        # Sort countries alphabetically
+        local sorted_countries=()
+        while IFS= read -r country; do
+            sorted_countries+=("$country")
+        done < <(printf '%s\n' "${!country_nodes[@]}" | sort)
+        
+        # Add countries (collapsed by default)
+        for country in "${sorted_countries[@]}"; do
+            # Count nodes in this country
+            local node_count=$(echo "${country_nodes[$country]}" | tr ';' '\n' | grep -c .)
+            
+            # Use globe icon for all countries
+            local flag="$COUNTRY_ICON"
+            
+            # Check if expanded
+            local expand_marker="▶"
+            if [[ -n "${expanded_countries[$country]}" ]]; then
+                expand_marker="▼"
+            fi
+            
+            menu_items+=("  $expand_marker $flag $country ($node_count nodes)")
+            menu_values+=("COUNTRY:$country")
+            menu_types+=("COUNTRY")
+            
+            # If expanded, show nodes
+            if [[ -n "${expanded_countries[$country]}" ]]; then
+                # Parse nodes within country
+                local nodes="${country_nodes[$country]}"
+                IFS=';' read -ra node_array <<< "$nodes"
+                
+                # Sort the nodes array
+                local sorted_nodes=()
+                while IFS= read -r sorted_node; do
+                    [[ -n "$sorted_node" ]] && sorted_nodes+=("$sorted_node")
+                done < <(printf '%s\n' "${node_array[@]}" | sort)
+                
+                for node_info in "${sorted_nodes[@]}"; do
+                    [[ -z "$node_info" ]] && continue
+                    
+                    IFS='|' read -r hostname city <<< "$node_info"
+                    local marker="◯"
+                    
+                    # Mark current node
+                    if [[ "$hostname" == "$current_exit_node_name" ]]; then
+                        marker="●"
+                    fi
+                    
+                    local display_name="      $marker $hostname"
+                    
+                    # Add city info if available
+                    if [[ -n "$city" ]] && [[ "$city" != "null" ]]; then
+                        display_name="      $marker $hostname ${DIM}($city)${RESET}"
+                    fi
+                    
+                    menu_items+=("$display_name")
+                    menu_values+=("$hostname")
+                    menu_types+=("NODE")
+                done
+            fi
+        done
+    fi
+    
+    # Add help text if no exit nodes available
+    if [[ ${#personal_nodes[@]} -eq 0 ]] && [[ ${#country_nodes[@]} -eq 0 ]]; then
+        menu_items+=("")
+        menu_values+=("SEPARATOR")
+        menu_types+=("SEPARATOR")
+        menu_items+=("${DIM}No exit nodes available.${RESET}")
+        menu_values+=("ERROR")
+        menu_types+=("ERROR")
+        menu_items+=("${DIM}To use Mullvad, connect Tailscale to Mullvad.${RESET}")
+        menu_values+=("ERROR")
+        menu_types+=("ERROR")
+    fi
+}
+
+# Apply selected exit node
+apply_exit_node() {
+    local hostname="$1"
+    
+    # Clear screen for better visibility
+    clear
+    
+    # Function to run tailscale command, retry with sudo if needed
+    run_tailscale_set() {
+        local cmd="$1"
+        local output
+        
+        # Try without sudo first
+        if output=$(tailscale set $cmd 2>&1); then
+            return 0
+        else
+            # Check if it's a permission issue
+            if [[ "$output" == *"Access denied"* ]] || [[ "$output" == *"permission"* ]] || [[ "$output" == *"sudo"* ]]; then
+                echo "${YELLOW}Permission required, using sudo...${RESET}"
+                # Retry with sudo
+                if sudo tailscale set $cmd 2>&1; then
+                    return 0
+                else
+                    return 1
+                fi
+            else
+                # Some other error, not permission-related
+                echo "$output" >&2
+                return 1
+            fi
+        fi
+    }
+    
+    if [[ -z "$hostname" ]]; then
+        echo "${YELLOW}Disabling exit node...${RESET}"
+        if run_tailscale_set "--exit-node="; then
+            echo "${GREEN}✓ Exit node disabled successfully${RESET}"
+            return 0
+        else
+            echo "${RED}✗ Failed to disable exit node${RESET}" >&2
+            return 1
+        fi
+    else
+        echo "${YELLOW}Setting exit node to: $hostname${RESET}"
+        if run_tailscale_set "--exit-node=$hostname"; then
+            echo "${GREEN}✓ Exit node set to $hostname${RESET}"
+            return 0
+        else
+            echo "${RED}✗ Failed to set exit node to $hostname${RESET}" >&2
+            return 1
+        fi
+    fi
+}
+
+# Find next selectable item
+find_next_selectable() {
+    local start=$1
+    local direction=$2  # 1 for down, -1 for up
+    local max=${#menu_items[@]}
+    local current=$start
+    
+    while true; do
+        ((current += direction))
+        
+        # Wrap around
+        if [[ $current -lt 0 ]]; then
+            current=$((max - 1))
+        elif [[ $current -ge $max ]]; then
+            current=0
+        fi
+        
+        # Stop if we've looped back
+        if [[ $current -eq $start ]]; then
+            break
+        fi
+        
+        # Check if selectable
+        local type="${menu_types[$current]}"
+        if [[ "$type" == "NODE" ]] || [[ "$type" == "COUNTRY" ]]; then
+            echo $current
+            return 0
+        fi
+    done
+    
+    echo $start
+}
+
+# Jump to country by first letter
+jump_to_country() {
+    local letter="$1"
+    local current=$selected_index
+    local max=${#menu_items[@]}
+    
+    # Convert to uppercase for comparison
+    letter=$(echo "$letter" | tr '[:lower:]' '[:upper:]')
+    
+    # Search forward from current position
+    for ((i = current + 1; i < max; i++)); do
+        if [[ "${menu_types[$i]}" == "COUNTRY" ]]; then
+            local country="${menu_values[$i]#COUNTRY:}"
+            local first_letter=$(echo "${country:0:1}" | tr '[:lower:]' '[:upper:]')
+            if [[ "$first_letter" == "$letter" ]]; then
+                echo $i
+                return 0
+            fi
+        fi
+    done
+    
+    # Wrap around and search from beginning
+    for ((i = 0; i <= current; i++)); do
+        if [[ "${menu_types[$i]}" == "COUNTRY" ]]; then
+            local country="${menu_values[$i]#COUNTRY:}"
+            local first_letter=$(echo "${country:0:1}" | tr '[:lower:]' '[:upper:]')
+            if [[ "$first_letter" == "$letter" ]]; then
+                echo $i
+                return 0
+            fi
+        fi
+    done
+    
+    echo $current
+}
+
+# Show menu using bash select (maximum compatibility)
+show_select_menu() {
+    clear
+    echo "${BOLD}Tailscale Exit Node Manager${RESET}"
+    echo "Current: ${GREEN}${current_exit_node}${RESET}"
+    echo ""
+    
+    # Filter out non-selectable items for select menu
+    local clean_options=()
+    local clean_values=()
+    
+    for idx in "${!menu_items[@]}"; do
+        local type="${menu_types[$idx]}"
+        
+        if [[ "$type" == "NODE" ]] || [[ "$type" == "COUNTRY" ]]; then
+            # Clean ANSI codes for select menu
+            local clean_text=$(echo "${menu_items[$idx]}" | sed 's/\x1b\[[0-9;]*m//g')
+            clean_options+=("$clean_text")
+            clean_values+=("${menu_values[$idx]}")
+        fi
+    done
+    
+    if [[ ${#clean_options[@]} -eq 0 ]]; then
+        echo "No exit nodes available."
+        echo ""
+        echo "Press any key to exit..."
+        read -n1 -r
+        exit 0
+    fi
+    
+    PS3=$'\nSelect exit node (number or q to quit): '
+    select choice in "${clean_options[@]}"; do
+        case "$REPLY" in
+            q|Q)
+                echo "Exiting..."
+                exit 0
+                ;;
+            [0-9]*)
+                if [[ $REPLY -ge 1 ]] && [[ $REPLY -le ${#clean_options[@]} ]]; then
+                    local selected_value="${clean_values[$((REPLY-1))]}"
+                    
+                    # Handle country expansion
+                    if [[ "$selected_value" == COUNTRY:* ]]; then
+                        local country="${selected_value#COUNTRY:}"
+                        echo "Expanding/collapsing country view not available in select mode."
+                        echo "Please use arrow-key mode for full functionality."
+                    else
+                        apply_exit_node "$selected_value"
+                        echo ""
+                        echo "Press any key to continue..."
+                        read -n1 -r
+                        break
+                    fi
+                else
+                    echo "Invalid selection"
+                fi
+                ;;
+            *)
+                echo "Invalid input. Enter a number or 'q' to quit."
+                ;;
+        esac
+    done
+}
+
+# Show menu using ANSI arrow keys (enhanced experience)
+show_ansi_menu() {
+    local key=""
+    local viewport_start=0
+    local term_height=$(tput lines 2>/dev/null || echo 24)
+    local term_width=$(tput cols 2>/dev/null || echo 80)
+    
+    # Calculate usable height (leave room for header and footer)
+    local header_lines=4
+    local footer_lines=4
+    local viewport_height=$((term_height - header_lines - footer_lines))
+    
+    # Ensure minimum height
+    [[ $viewport_height -lt 10 ]] && viewport_height=10
+    
+    # Use alternate screen buffer and hide cursor
+    tput smcup 2>/dev/null  # Save screen and use alternate buffer
+    tput civis 2>/dev/null  # Hide cursor
+    
+    # Cleanup function
+    cleanup() {
+        tput cnorm 2>/dev/null  # Show cursor
+        tput rmcup 2>/dev/null  # Restore screen
+        clear
+        exit 0
+    }
+    
+    # Trap signals properly
+    trap cleanup EXIT INT TERM HUP QUIT
+    
+    while true; do
+        # Clear screen and reset cursor
+        clear
+        
+        # Header with proper box width
+        local title="Tailscale Exit Node Manager"
+        local title_len=${#title}
+        local box_width=$((title_len + 4))
+        
+        # Create box top
+        echo -n "${BOLD}${CYAN}╔"
+        for ((i=0; i<box_width; i++)); do echo -n "═"; done
+        echo "╗${RESET}"
+        
+        # Title line
+        echo "${BOLD}${CYAN}║  ${title}  ║${RESET}"
+        
+        # Box bottom
+        echo -n "${BOLD}${CYAN}╚"
+        for ((i=0; i<box_width; i++)); do echo -n "═"; done
+        echo "╝${RESET}"
+        
+        echo "${BOLD}Current:${RESET} ${GREEN}${current_exit_node}${RESET}"
+        echo ""
+        
+        # Calculate viewport
+        if [[ $selected_index -lt $viewport_start ]]; then
+            viewport_start=$selected_index
+        elif [[ $selected_index -ge $((viewport_start + viewport_height)) ]]; then
+            viewport_start=$((selected_index - viewport_height + 1))
+        fi
+        
+        # Ensure viewport_start is valid
+        [[ $viewport_start -lt 0 ]] && viewport_start=0
+        local max_start=$((${#menu_items[@]} - viewport_height))
+        [[ $max_start -lt 0 ]] && max_start=0
+        [[ $viewport_start -gt $max_start ]] && viewport_start=$max_start
+        
+        # Draw menu items within viewport
+        local display_count=0
+        for ((i = viewport_start; i < ${#menu_items[@]} && display_count < viewport_height; i++)); do
+            local item="${menu_items[$i]}"
+            local type="${menu_types[$i]}"
+            
+            # Apply selection highlighting
+            if [[ $i -eq $selected_index ]]; then
+                if [[ "$type" == "NODE" ]] || [[ "$type" == "COUNTRY" ]]; then
+                    echo "${HIGHLIGHT_BG}${HIGHLIGHT_FG}▶ ${item}${RESET}"
+                else
+                    echo "  ${item}"
+                fi
+            else
+                echo "  ${item}"
+            fi
+            
+            ((display_count++))
+        done
+        
+        # Fill remaining viewport space
+        while [[ $display_count -lt $viewport_height ]]; do
+            echo ""
+            ((display_count++))
+        done
+        
+        # Show scroll indicators
+        if [[ $viewport_start -gt 0 ]]; then
+            tput cup $((header_lines)) $((term_width - 15))
+            echo "${YELLOW}↑ More above${RESET}"
+        fi
+        if [[ $((viewport_start + viewport_height)) -lt ${#menu_items[@]} ]]; then
+            tput cup $((header_lines + viewport_height - 1)) $((term_width - 15))
+            echo "${YELLOW}↓ More below${RESET}"
+        fi
+        
+        # Move to footer area
+        tput cup $((term_height - 3)) 0
+        
+        # Instructions
+        echo "────────────────────────────────────────────────────────────────"
+        echo "[${BOLD}↑↓${RESET}] Navigate  [${BOLD}→←${RESET}] Expand/Collapse  [${BOLD}Enter${RESET}] Select  [${BOLD}a-z${RESET}] Jump"
+        echo "[${BOLD}q/ESC${RESET}] Quit  [${BOLD}r${RESET}] Refresh"
+        if [[ -n "$search_buffer" ]]; then
+            echo "Search: ${YELLOW}${search_buffer}${RESET}"
+        fi
+        
+        # Read input
+        read -rsn1 key
+        
+        # Clear search buffer after timeout (1 second)
+        local current_time=$(date +%s)
+        if [[ $((current_time - last_key_time)) -gt 1 ]]; then
+            search_buffer=""
+        fi
+        last_key_time=$current_time
+        
+        case "$key" in
+            $'\x1b')  # ESC sequence
+                # Check if it's just ESC (no following characters)
+                read -rsn2 -t 0.1 key
+                if [[ -z "$key" ]]; then
+                    # Just ESC pressed - exit
+                    cleanup
+                fi
+                search_buffer=""  # Clear search on navigation
+                case "$key" in
+                    '[A')  # Up arrow
+                        selected_index=$(find_next_selectable $selected_index -1)
+                        ;;
+                    '[B')  # Down arrow
+                        selected_index=$(find_next_selectable $selected_index 1)
+                        ;;
+                    '[C')  # Right arrow - expand country
+                        local selected_value="${menu_values[$selected_index]}"
+                        local selected_type="${menu_types[$selected_index]}"
+                        if [[ "$selected_type" == "COUNTRY" ]]; then
+                            local country="${selected_value#COUNTRY:}"
+                            if [[ -z "${expanded_countries[$country]}" ]]; then
+                                expanded_countries["$country"]=1
+                                build_menu
+                            fi
+                        fi
+                        ;;
+                    '[D')  # Left arrow - collapse country
+                        local selected_value="${menu_values[$selected_index]}"
+                        local selected_type="${menu_types[$selected_index]}"
+                        if [[ "$selected_type" == "COUNTRY" ]]; then
+                            local country="${selected_value#COUNTRY:}"
+                            if [[ -n "${expanded_countries[$country]}" ]]; then
+                                unset expanded_countries["$country"]
+                                build_menu
+                            fi
+                        fi
+                        ;;
+                    '[H')  # Home
+                        selected_index=0
+                        selected_index=$(find_next_selectable -1 1)
+                        ;;
+                    '[F')  # End
+                        selected_index=$((${#menu_items[@]} - 1))
+                        selected_index=$(find_next_selectable $((${#menu_items[@]})) -1)
+                        ;;
+                    '[5')  # Page Up
+                        read -rsn1 -t 0.1  # consume ~
+                        for ((j=0; j<viewport_height/2; j++)); do
+                            selected_index=$(find_next_selectable $selected_index -1)
+                        done
+                        ;;
+                    '[6')  # Page Down
+                        read -rsn1 -t 0.1  # consume ~
+                        for ((j=0; j<viewport_height/2; j++)); do
+                            selected_index=$(find_next_selectable $selected_index 1)
+                        done
+                        ;;
+                esac
+                ;;
+            '')  # Enter key
+                local selected_value="${menu_values[$selected_index]}"
+                local selected_type="${menu_types[$selected_index]}"
+                
+                if [[ "$selected_type" == "COUNTRY" ]]; then
+                    # Toggle country expansion
+                    local country="${selected_value#COUNTRY:}"
+                    if [[ -n "${expanded_countries[$country]}" ]]; then
+                        unset expanded_countries["$country"]
+                    else
+                        expanded_countries["$country"]=1
+                    fi
+                    # Rebuild menu with new expansion state
+                    build_menu
+                elif [[ "$selected_type" == "NODE" ]]; then
+                    tput cnorm 2>/dev/null  # Show cursor
+                    apply_exit_node "$selected_value"
+                    echo ""
+                    echo "Press any key to continue..."
+                    read -n1 -r
+                    tput civis 2>/dev/null  # Hide cursor again
+                    # Refresh current status
+                    get_current_exit_node
+                    build_menu
+                fi
+                ;;
+            'q'|'Q')
+                cleanup
+                ;;
+            [a-zA-Z])  # Jump to country (but not 'q')
+                search_buffer="${search_buffer}${key}"
+                # Jump to first country starting with this letter
+                local new_index=$(jump_to_country "${search_buffer:0:1}")
+                if [[ $new_index -ne $selected_index ]]; then
+                    selected_index=$new_index
+                fi
+                ;;
+            'r'|'R')
+                # Refresh
+                echo ""
+                echo "Refreshing..."
+                get_current_exit_node
+                build_menu
+                search_buffer=""
+                ;;
+            '/')
+                # Start search mode
+                search_buffer="/"
+                ;;
+        esac
+        
+        # Boundary checks
+        if [[ $selected_index -lt 0 ]]; then
+            selected_index=0
+        fi
+        if [[ $selected_index -ge ${#menu_items[@]} ]]; then
+            selected_index=$((${#menu_items[@]} - 1))
+        fi
+    done
+}
+
+# Show help
+show_help() {
+    echo "$SCRIPT_NAME - $SCRIPT_DESCRIPTION"
+    echo ""
+    echo "Usage: $SCRIPT_NAME [options]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help       Show this help message"
+    echo "  -V, --version    Show version information"
+    echo "  -l, --list       List available exit nodes without interactive menu"
+    echo ""
+    echo "This tool provides an interactive menu for managing Tailscale exit nodes."
+    echo "It automatically detects and groups Mullvad exit nodes by country when available."
+    echo ""
+    echo "Navigation:"
+    echo "  - Arrow keys: Navigate through options"
+    echo "  - Enter: Select exit node or expand/collapse country"
+    echo "  - Right/Left arrows: Expand/collapse countries"
+    echo "  - a-z: Jump to country starting with that letter"
+    echo "  - r: Refresh the node list"
+    echo "  - q or ESC: Quit without changes"
+    echo ""
+    echo "Features:"
+    echo "  - Country flags for easy identification"
+    echo "  - Collapsed country view (expand with Enter or Right arrow)"
+    echo "  - Current exit node marked with ●"
+    echo "  - Automatic Mullvad detection"
+}
+
+# Override the default help handler
+show_help_for_script() {
+    show_help
+}
+
+# List mode (non-interactive)
+list_exit_nodes() {
+    get_current_exit_node
+    echo "Current exit node: ${current_exit_node}"
+    echo ""
+    echo "Available exit nodes:"
+    
+    if [[ -n "$status_json" ]]; then
+        echo "$status_json" | jq -r '
+            .Peer[] | 
+            select(.ExitNodeOption == true) | 
+            "\(.HostName // .DNSName) - \(.Location.Country // "Unknown") - \(.Location.City // "")"
+        ' 2>/dev/null
+    else
+        echo "Unable to retrieve exit node list"
+    fi
+}
+
+# Main logic
+main() {
+    # Parse arguments
+    for arg in "$@"; do
+        case "$arg" in
+            --list|-l)
+                list_exit_nodes
+                exit 0
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            --version|-V)
+                echo "$SCRIPT_NAME $TAILSCALE_CLI_HELPERS_VERSION"
+                exit 0
+                ;;
+        esac
+    done
+    
+    # Check if Tailscale is running
+    if ! tailscale status >/dev/null 2>&1; then
+        echo "${RED}Error: Tailscale is not running or not accessible${RESET}" >&2
+        echo "Please ensure Tailscale is installed and running." >&2
+        exit 1
+    fi
+    
+    # Get current status and build menu
+    get_current_exit_node
+    build_menu
+    
+    # Find and select the current exit node if it exists
+    if [[ "$current_exit_node" != "None" ]]; then
+        for ((i=0; i<${#menu_values[@]}; i++)); do
+            if [[ "${menu_values[$i]}" == "$current_exit_node_name" ]]; then
+                selected_index=$i
+                break
+            fi
+        done
+    fi
+    
+    # Show appropriate interface
+    if [[ "$USE_ANSI" == true ]]; then
+        show_ansi_menu
+    else
+        show_select_menu
+    fi
+}
+
+# Run main function
+main "$@"
