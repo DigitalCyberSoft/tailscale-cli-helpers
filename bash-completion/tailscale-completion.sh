@@ -16,7 +16,7 @@ fi
 # Source the resolver library for host completion
 _completion_source_resolver() {
     local dirs=(
-        "$(dirname "${BASH_SOURCE[0]}")/lib"
+        "$(dirname "${BASH_SOURCE[0]}")/../lib"
         "/usr/share/tailscale-cli-helpers/lib"
         "/usr/local/share/tailscale-cli-helpers/lib"
     )
@@ -53,8 +53,11 @@ _get_tailscale_hosts() {
     if type get_all_tailscale_hosts >/dev/null 2>&1; then
         hosts=$(get_all_tailscale_hosts "" "^${host_part}")
     else
-        # Fallback to basic tailscale status
-        hosts=$(tailscale status 2>/dev/null | awk 'NR>1 && $1 != "" {print $2}' | grep "^${host_part}" 2>/dev/null)
+        # Fallback to basic tailscale status (exclude Mullvad exit nodes)
+        # Mullvad nodes typically match patterns like de-*-wg-*, us-*-wg-*, etc.
+        hosts=$(tailscale status 2>/dev/null | awk 'NR>1 && $1 != "" {print $2}' | \
+                grep "^${host_part}" 2>/dev/null | \
+                grep -v -E '^[a-z]{2}-[a-z]{3}-wg-[0-9]+$' 2>/dev/null)
     fi
     
     # Add user prefix back if needed

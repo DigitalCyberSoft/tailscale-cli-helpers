@@ -238,14 +238,15 @@ find_all_matching_hosts() {
         magicdns_enabled="true"
     fi
     
-    # Find all matching hosts (case-insensitive)
+    # Find all matching hosts (case-insensitive), excluding Mullvad exit nodes
     local matches=$(echo "$tailscale_json" | jq -r --arg pattern "$hostname_only" --arg magicdns "$magicdns_enabled" '
         # Check Self host
         (if (.Self.HostName | ascii_downcase | contains($pattern | ascii_downcase)) then 
             "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
         else empty end),
-        # Check Peer hosts
+        # Check Peer hosts (excluding Mullvad exit nodes)
         (.Peer | to_entries[] | .value | 
+            select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
             if (.HostName | ascii_downcase | contains($pattern | ascii_downcase)) then
                 "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
             else empty end
@@ -259,8 +260,9 @@ find_all_matching_hosts() {
             (if .Self.HostName == $hostname then 
                 "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
             else empty end),
-            # Check Peer hosts
+            # Check Peer hosts (excluding Mullvad exit nodes)
             (.Peer | to_entries[] | .value | 
+                select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
                 if .HostName == $hostname then
                     "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
                 else empty end
@@ -330,17 +332,22 @@ find_multiple_hosts_matching() {
         (if (.Self.HostName | test($pattern)) then 
             "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
         else empty end),
-        # Extract matching Peer hosts  
+        # Extract matching Peer hosts (excluding Mullvad exit nodes)
         (.Peer | to_entries[] | .value | 
+            select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
             if (.HostName | test($pattern)) then
                 "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
             else empty end
         )
     ' 2>/dev/null || {
-        # Fallback: try basic pattern matching without regex
+        # Fallback: try basic pattern matching without regex (excluding Mullvad exit nodes)
         echo "$tailscale_json" | jq -r --arg pattern "$search_pattern" '
             # Simple fallback - check if hostname contains the pattern (without wildcards)
-            (.Self.HostName), (.Peer | to_entries[] | .value.HostName) | 
+            (.Self.HostName), 
+            (.Peer | to_entries[] | .value | 
+                select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
+                .HostName
+            ) | 
             select(contains($pattern))' 2>/dev/null | head -5
     }
 }
@@ -355,10 +362,13 @@ get_all_tailscale_hosts() {
     
     _validate_tailscale_json "$tailscale_json" || return 1
     
-    # Extract all hostnames
+    # Extract all hostnames, excluding Mullvad exit nodes
     local hosts=$(echo "$tailscale_json" | jq -r '
         (.Self | "\(.HostName)"),
-        (.Peer | to_entries[] | .value.HostName)
+        (.Peer | to_entries[] | .value | 
+            select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
+            .HostName
+        )
     ' 2>/dev/null | sort -u)
     
     # Filter by prefix if provided
