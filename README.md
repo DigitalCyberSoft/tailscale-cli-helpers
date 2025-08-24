@@ -6,8 +6,8 @@ Comprehensive Bash/Zsh functions for secure SSH, file transfer, and parallel ope
 
 ```bash
 # One-line install
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.4.tar.gz
-tar -xzf v0.2.4.tar.gz && cd tailscale-cli-helpers-0.2.4
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.1.tar.gz
+tar -xzf v0.3.1.tar.gz && cd tailscale-cli-helpers-0.3.1
 ./setup.sh
 
 # Then use commands
@@ -50,36 +50,17 @@ ts ssh_copy_id myhost           # Via dispatcher
 - **Conditional features**: Only enables commands when required tools are installed
 - **Clean completion**: Internal functions hidden from tab completion
 
-## 🆕 What's New in v0.2.4
+## 🆕 What's New
 
-### Critical Bug Fix
-- **Fixed Missing Library**: Added missing `common.sh` to packages (fixes version display)
-- **Updated Debian Packaging**: Rewrote debian/rules for new bin/ structure
-- **Proper File Installation**: Both RPM and DEB now include all required files
+### v0.3.1 (Latest)
+- **Fixed tab completion**: Exclude Mullvad exit nodes from SSH/SCP/SFTP/rsync completions
+- **Enhanced tsexit**: Improved interactive exit node selection with better Mullvad country grouping
 
-## 📦 What's New in v0.2.3
-
-### Package Naming Update
-- **Renamed Package**: `tailscale-cli-helpers-tmussh` → `tailscale-cli-helpers-mussh`
-- **Smooth Upgrades**: Automatic upgrade path from old package name
-- **No Changes Required**: The `tmussh` command remains unchanged
-
-## 📦 What's New in v0.2.2
-
-### Modular Package Architecture
-- **Split packaging**: `tmussh` now available as separate optional package
-- **Better dependency management**: Install only what you need
-- **RPM/DEB packages**: Professional packaging for enterprise deployments
-
-### Enhanced Project Structure
-- **Organized layout**: Separated into `bin/`, `lib/`, and `man/` directories
-- **Shared libraries**: Common code in `lib/common.sh` and `lib/tailscale-resolver.sh`
-- **Comprehensive documentation**: Added `CLAUDE.md` development guide
-
-### Improved Installation
-- **Package migration**: Smooth upgrade path from older versions
-- **Post-install scripts**: Automatic cleanup of legacy installations
-- **Enhanced setup.sh**: Better error handling and platform detection
+### v0.3.0
+- **New `tsexit` command**: Interactive exit node management with Mullvad country grouping
+- **Restored functionality**: Fixed missing features from previous releases
+- **Improved multi-host selection**: Better prompts showing default options
+- **Reorganized completions**: Moved to dedicated bash-completion directory
 
 ## 📋 Requirements
 
@@ -103,9 +84,9 @@ ts ssh_copy_id myhost           # Via dispatcher
 
 ```bash
 # Download latest release
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.4.tar.gz
-tar -xzf v0.2.4.tar.gz
-cd tailscale-cli-helpers-0.2.4
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.1.tar.gz
+tar -xzf v0.3.1.tar.gz
+cd tailscale-cli-helpers-0.3.1
 
 # Install for current user
 ./setup.sh
@@ -122,19 +103,19 @@ sudo ./setup.sh --system
 #### RPM (Fedora/RHEL/CentOS)
 ```bash
 # Main package
-sudo rpm -i tailscale-cli-helpers-0.2.4-1.noarch.rpm
+sudo rpm -i tailscale-cli-helpers-0.3.1-1.noarch.rpm
 
 # Optional: Install tmussh for parallel SSH (requires mussh)
-sudo rpm -i tailscale-cli-helpers-mussh-0.2.4-1.noarch.rpm
+sudo rpm -i tailscale-cli-helpers-mussh-0.3.1-1.noarch.rpm
 ```
 
 #### DEB (Ubuntu/Debian)
 ```bash
 # Main package
-sudo dpkg -i tailscale-cli-helpers_0.2.4-2_all.deb
+sudo dpkg -i tailscale-cli-helpers_0.3.1-2_all.deb
 
 # Optional: Install tmussh for parallel SSH (requires mussh)
-sudo dpkg -i tailscale-cli-helpers-mussh_0.2.4-2_all.deb
+sudo dpkg -i tailscale-cli-helpers-mussh_0.3.1-2_all.deb
 ```
 
 #### Homebrew (macOS)
@@ -169,43 +150,19 @@ sudo ./setup.sh --system # Force system-wide installation (includes ts dispatche
 - Scripts: `~/.config/tailscale-cli-helpers/`
 - Shell loading: Added to `~/.bashrc` or `~/.zshrc`
 
-### 📦 Package Installation
-
-#### Fedora/RHEL/CentOS (RPM)
-```bash
-# Download and install RPM package
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/releases/download/v0.2.1/tailscale-cli-helpers-0.2.1-1.noarch.rpm
-sudo rpm -i tailscale-cli-helpers-0.2.1-1.noarch.rpm
-```
-
-#### Ubuntu/Debian (DEB)
-```bash
-# Download and install DEB package
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/releases/download/v0.2.1/tailscale-cli-helpers_0.2.1-2_all.deb
-sudo dpkg -i tailscale-cli-helpers_0.2.1-2_all.deb
-```
-
-#### Package Installation Details
-Both packages install to standard system locations:
-- **Scripts**: `/usr/share/tailscale-cli-helpers/`
-- **Auto-loading**: `/etc/profile.d/tailscale-cli-helpers.sh`
-- **Bash completion**: `/etc/bash_completion.d/tailscale-cli-helpers`
-- **Setup command**: `/usr/bin/tailscale-cli-helpers-setup`
-
-After installation, all commands are immediately available in new shell sessions.
 
 ### 🔄 Updating
 
 ```bash
 # Update to latest version (manual installation)
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.1.tar.gz
-tar -xzf v0.2.1.tar.gz
-cd tailscale-cli-helpers-0.2.1
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.1.tar.gz
+tar -xzf v0.3.1.tar.gz
+cd tailscale-cli-helpers-0.3.1
 ./setup.sh  # Will update existing installation
 
 # Update package installations
-sudo rpm -U tailscale-cli-helpers-0.2.1-1.noarch.rpm     # RPM systems
-sudo dpkg -i tailscale-cli-helpers_0.2.1-2_all.deb       # DEB systems
+sudo rpm -U tailscale-cli-helpers-0.3.1-1.noarch.rpm     # RPM systems
+sudo dpkg -i tailscale-cli-helpers_0.3.1-2_all.deb       # DEB systems
 ```
 
 ### 🍎 macOS Installation
@@ -215,9 +172,9 @@ sudo dpkg -i tailscale-cli-helpers_0.2.1-2_all.deb       # DEB systems
 brew install jq tailscale
 
 # Download and install
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.2.1.tar.gz
-tar -xzf v0.2.1.tar.gz
-cd tailscale-cli-helpers-0.2.1
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.1.tar.gz
+tar -xzf v0.3.1.tar.gz
+cd tailscale-cli-helpers-0.3.1
 ./setup.sh
 
 # macOS installs to user locations:
