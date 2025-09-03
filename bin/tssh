@@ -83,6 +83,13 @@ main() {
         esac
     done
     
+    # Check if user wants to use MagicDNS (opt-in)
+    local use_magicdns="${TAILSCALE_USE_MAGICDNS:-false}"
+    case "$use_magicdns" in
+        true|1|yes|YES|True|TRUE) use_magicdns=true ;;
+        *) use_magicdns=false ;;
+    esac
+    
     local verbose=false
     local resolve_only=false
     local ssh_args=()
@@ -188,7 +195,7 @@ main() {
         local real_hostname=$(echo "$host_info" | cut -d ',' -f 2)
         
         if [[ "$resolve_only" == "true" ]]; then
-            if is_magicdns_working; then
+            if [[ "$use_magicdns" == "true" ]] && is_magicdns_working; then
                 echo "${user_prefix}${real_hostname}"
             else
                 echo "${user_prefix}${ip}"
@@ -196,15 +203,11 @@ main() {
             exit 0
         fi
         
-        if is_magicdns_working; then
+        if [[ "$use_magicdns" == "true" ]] && is_magicdns_working; then
             echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${real_hostname}${RESET} (${ip})..."
             exec ssh "${user_prefix}${real_hostname}" "${ssh_args[@]}"
         else
-            echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${real_hostname}${RESET} (${ip})..."
-            local tailscale_json=$(tailscale status --json 2>/dev/null)
-            if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
-                echo "Note: MagicDNS is enabled but resolv.conf is not configured properly. Using IP address."
-            fi
+            echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${ip}${RESET} (${real_hostname})..."
             exec ssh "${user_prefix}${ip}" "${ssh_args[@]}"
         fi
     else
@@ -240,7 +243,7 @@ main() {
         # Get selection
         local selection
         if [ -t 0 ]; then
-            read -p "Select host number (1-${#sorted_hosts[@]}) [1]: " selection
+            read -p "Select host number ([1]-${#sorted_hosts[@]}): " selection
         else
             echo "Non-interactive mode, selecting first match"
             selection=1
@@ -256,7 +259,7 @@ main() {
             local selected_hostname=$(echo "$selected_host" | cut -d ',' -f 2)
             
             if [[ "$resolve_only" == "true" ]]; then
-                if is_magicdns_working; then
+                if [[ "$use_magicdns" == "true" ]] && is_magicdns_working; then
                     echo "${user_prefix}${selected_hostname}"
                 else
                     echo "${user_prefix}${selected_ip}"
@@ -264,15 +267,11 @@ main() {
                 exit 0
             fi
             
-            if is_magicdns_working; then
+            if [[ "$use_magicdns" == "true" ]] && is_magicdns_working; then
                 echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${selected_hostname}${RESET} (${selected_ip})..."
                 exec ssh "${user_prefix}${selected_hostname}" "${ssh_args[@]}"
             else
-                echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${selected_hostname}${RESET} (${selected_ip})..."
-                local tailscale_json=$(tailscale status --json 2>/dev/null)
-                if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
-                    echo "Note: MagicDNS is enabled but resolv.conf is not configured properly. Using IP address."
-                fi
+                echo -e "${GREEN}[TS]${RESET} Connecting to ${GREEN}${user_prefix}${selected_ip}${RESET} (${selected_hostname})..."
                 exec ssh "${user_prefix}${selected_ip}" "${ssh_args[@]}"
             fi
         else

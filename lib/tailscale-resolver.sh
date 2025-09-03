@@ -74,6 +74,13 @@ resolve_tailscale_host() {
     local search_hostname="$1"
     local verbose="${2:-false}"
     
+    # Check if user wants to use MagicDNS (opt-in)
+    local use_magicdns="${TAILSCALE_USE_MAGICDNS:-false}"
+    case "$use_magicdns" in
+        true|1|yes|YES|True|TRUE) use_magicdns=true ;;
+        *) use_magicdns=false ;;
+    esac
+    
     # Security: Validate hostname
     _validate_hostname "$search_hostname" || {
         [[ "$verbose" == "true" ]] && echo "[DEBUG] Invalid hostname format: $search_hostname" >&2
@@ -168,8 +175,8 @@ resolve_tailscale_host() {
         
         [[ "$verbose" == "true" ]] && echo "[DEBUG] Found host - IP: $ip, DNS: $dns_name, OS: $os, Status: $online_status" >&2
         
-        # Prefer DNS name if MagicDNS is enabled and available
-        if [[ "$magicdns_enabled" == "true" ]] && [[ -n "$dns_name" ]] && [[ "$dns_name" != "null" ]]; then
+        # Use DNS name only if user opts in AND MagicDNS is working
+        if [[ "$use_magicdns" == "true" ]] && [[ "$magicdns_enabled" == "true" ]] && [[ -n "$dns_name" ]] && [[ "$dns_name" != "null" ]] && is_magicdns_working; then
             echo "${user_prefix}${dns_name}"
         else
             echo "${user_prefix}${ip}"
@@ -277,16 +284,19 @@ find_all_matching_hosts() {
             if [[ -n "$match" ]]; then
                 local match_hostname=$(echo "$match" | cut -d',' -f2)
                 local distance=$(_levenshtein "$hostname_only" "$match_hostname")
-                sorted_matches+=("$distance:$match")
+                # Format: distance:hostname:full_match for proper sorting
+                # Pad distance with zeros for correct numeric sorting
+                sorted_matches+=("$(printf "%03d:%s:%s" "$distance" "$match_hostname" "$match")")
             fi
         done <<< "$matches"
         
-        # Sort by distance
-        IFS=$'\n' sorted_matches=($(sort -n <<< "${sorted_matches[*]}"))
+        # Sort by distance (numeric) then by hostname (alphabetic)
+        IFS=$'\n' sorted_matches=($(sort -t':' -k1,1n -k2,2 <<< "${sorted_matches[*]}"))
         
-        # Output sorted matches without distance
+        # Output sorted matches without distance and hostname prefix
         for entry in "${sorted_matches[@]}"; do
-            echo "${entry#*:}"
+            # Extract the full match data (after second colon)
+            echo "${entry#*:*:}"
         done
     fi
     
