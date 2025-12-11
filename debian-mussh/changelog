@@ -1,3 +1,9 @@
+tailscale-cli-helpers-mussh (0.3.2-1) unstable; urgency=medium
+
+  * Fix wildcard expansion to use IPs when MagicDNS unavailable
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 11 Dec 2025 10:00:00 +0800
+
 tailscale-cli-helpers-mussh (0.3.0-1) unstable; urgency=medium
 
   * Fixed broken wildcard pattern matching in tmussh

@@ -53,9 +53,9 @@ show_help() {
 
 # Main dispatcher
 main() {
-    # Handle version and help early, before any processing
-    for arg in "$@"; do
-        case "$arg" in
+    # Handle version and help only as first argument (before subcommand)
+    if [[ $# -gt 0 ]]; then
+        case "$1" in
             --version|-V)
                 echo "ts $TAILSCALE_CLI_HELPERS_VERSION"
                 exit 0
@@ -65,8 +65,8 @@ main() {
                 exit 0
                 ;;
         esac
-    done
-    
+    fi
+
     if [[ $# -eq 0 ]]; then
         show_help
         exit 0

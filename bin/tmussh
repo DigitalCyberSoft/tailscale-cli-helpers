@@ -64,22 +64,28 @@ show_tmussh_help() {
 # Function to expand wildcards to Tailscale hosts
 expand_tailscale_wildcards() {
     local pattern="$1"
-    
+
     # Use the shared function for multi-host pattern matching
     local matches=$(find_multiple_hosts_matching "$pattern")
-    
+
     if [[ -n "$matches" ]]; then
-        # Extract hostnames and return space-separated list
-        local hostnames=()
+        # Resolve each matched host (handles MagicDNS check properly)
+        local hosts=()
         while IFS= read -r match; do
             if [[ -n "$match" ]]; then
-                local hostname=$(echo "$match" | cut -d',' -f2)
-                hostnames+=("$hostname")
+                # Extract short hostname (first part of DNS name)
+                local dns_name=$(echo "$match" | cut -d',' -f2)
+                local short_name="${dns_name%%.*}"
+                # Resolve to get IP or working DNS name
+                local resolved=$(resolve_tailscale_host "$short_name")
+                if [[ $? -eq 0 ]]; then
+                    hosts+=("$resolved")
+                fi
             fi
         done <<< "$matches"
-        
+
         # Return space-separated list
-        echo "${hostnames[@]}"
+        echo "${hosts[@]}"
     fi
 }
 
