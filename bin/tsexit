@@ -176,31 +176,32 @@ build_menu() {
             [[ "$hostname" == "unknown" ]] && continue
             [[ -z "$hostname" ]] && continue
             
-            # Use full DNS name if available, remove trailing dot
+            # Use full DNS name for display, short hostname for value
             local display_name="$hostname"
+            local value_name="$hostname"  # Short hostname for tailscale set
             if [[ -n "$dnsname" ]] && [[ "$dnsname" != "$hostname" ]]; then
-                # Remove trailing dot from DNS name
+                # Remove trailing dot from DNS name for display
                 display_name="${dnsname%.}"
             fi
-            
+
             # Categorize nodes - check DNSName for mullvad domain or hostname pattern
             if [[ "$dnsname" == *.mullvad.ts.net ]] || [[ "$hostname" =~ ^[a-z]{2}-[a-z]{3}-wg-[0-9]+$ ]]; then
                 # It's a Mullvad node (pattern: country-city-wg-number)
                 if [[ -n "$country" ]] && [[ "$country" != "" ]]; then
-                    # Store by country with full DNS name
+                    # Store by country: value_name|display_name|city
                     if [[ -n "${country_nodes[$country]}" ]]; then
                         country_nodes["$country"]+=";"
                     fi
-                    country_nodes["$country"]+="${display_name}|${city}"
-                    
+                    country_nodes["$country"]+="${value_name}|${display_name}|${city}"
+
                     # Auto-expand country if this is the current exit node
-                    if [[ "$display_name" == "$current_exit_node_name" ]]; then
+                    if [[ "$display_name" == "$current_exit_node_name" ]] || [[ "$value_name" == "$current_exit_node_name" ]]; then
                         expanded_countries["$country"]=1
                     fi
                 fi
             else
-                # Personal/Tailnet device - use full DNS name
-                personal_nodes+=("$display_name")
+                # Personal/Tailnet device - store value|display
+                personal_nodes+=("${value_name}|${display_name}")
             fi
         done <<< "$exit_nodes"
     fi
@@ -215,16 +216,18 @@ build_menu() {
         menu_values+=("HEADER")
         menu_types+=("HEADER")
         
-        for hostname in "${personal_nodes[@]}"; do
+        for node_entry in "${personal_nodes[@]}"; do
+            local value_name="${node_entry%%|*}"
+            local display_name="${node_entry#*|}"
             local marker="◯"
-            
+
             # Mark current node
-            if [[ "$hostname" == "$current_exit_node_name" ]]; then
+            if [[ "$value_name" == "$current_exit_node_name" ]] || [[ "$display_name" == "$current_exit_node_name" ]]; then
                 marker="●"
             fi
-            
-            menu_items+=("  $marker $hostname")
-            menu_values+=("$hostname")
+
+            menu_items+=("  $marker $display_name")
+            menu_values+=("$value_name")
             menu_types+=("NODE")
         done
     fi
@@ -277,24 +280,24 @@ build_menu() {
                 
                 for node_info in "${sorted_nodes[@]}"; do
                     [[ -z "$node_info" ]] && continue
-                    
-                    IFS='|' read -r hostname city <<< "$node_info"
+
+                    IFS='|' read -r value_name full_name city <<< "$node_info"
                     local marker="◯"
-                    
+
                     # Mark current node
-                    if [[ "$hostname" == "$current_exit_node_name" ]]; then
+                    if [[ "$value_name" == "$current_exit_node_name" ]] || [[ "$full_name" == "$current_exit_node_name" ]]; then
                         marker="●"
                     fi
-                    
-                    local display_name="      $marker $hostname"
-                    
+
+                    local display_text="      $marker $full_name"
+
                     # Add city info if available
                     if [[ -n "$city" ]] && [[ "$city" != "null" ]]; then
-                        display_name="      $marker $hostname ${DIM}($city)${RESET}"
+                        display_text="      $marker $full_name ${DIM}($city)${RESET}"
                     fi
-                    
-                    menu_items+=("$display_name")
-                    menu_values+=("$hostname")
+
+                    menu_items+=("$display_text")
+                    menu_values+=("$value_name")
                     menu_types+=("NODE")
                 done
             fi

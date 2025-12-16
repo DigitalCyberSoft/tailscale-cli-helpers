@@ -1,3 +1,9 @@
+tailscale-cli-helpers (0.3.3-1) unstable; urgency=medium
+
+  * Fix tsexit to use short hostname instead of FQDN for exit node selection
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 11 Dec 2025 11:00:00 +0800
+
 tailscale-cli-helpers (0.3.2-1) unstable; urgency=medium
 
   * Fix ts dispatcher intercepting -h flag meant for subcommands
