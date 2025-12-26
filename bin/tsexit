@@ -82,9 +82,10 @@ fi
 COUNTRY_ICON="🌍"
 
 # Global variables
-declare -a menu_items  # Display text for each item
-declare -a menu_values # Actual values (hostnames or special values)
+declare -a menu_items  # Display text for each item (formatted)
+declare -a menu_values # Actual values (IPs or special values)
 declare -a menu_types  # Type of each item: NODE, COUNTRY, HEADER, etc.
+declare -a menu_display_names  # Clean display names for nodes (hostnames)
 declare -A expanded_countries  # Track which countries are expanded
 current_exit_node=""
 current_exit_node_name=""
@@ -146,14 +147,16 @@ build_menu() {
     menu_items=()
     menu_values=()
     menu_types=()
-    
+    menu_display_names=()
+
     declare -A country_nodes
     local personal_nodes=()
-    
+
     # Add None option
     menu_items+=("◯ None (Disable exit node)")
     menu_values+=("")
     menu_types+=("NODE")
+    menu_display_names+=("")
     
     # Mark current if None
     if [[ "$current_exit_node" == "None" ]]; then
@@ -162,23 +165,24 @@ build_menu() {
     
     # Parse exit nodes from JSON - single jq call for efficiency
     if [[ -n "$status_json" ]]; then
-        # Get all exit node capable peers in one go
+        # Get all exit node capable peers in one go (including IP for reliable selection)
         local exit_nodes
         exit_nodes=$(echo "$status_json" | jq -r '
-            .Peer[] | 
-            select(.ExitNodeOption == true) | 
-            "\(.HostName // .DNSName // "unknown")|\(.DNSName // "")|\(.Location.Country // "")|\(.Location.City // "")"
+            .Peer[] |
+            select(.ExitNodeOption == true) |
+            "\(.TailscaleIPs[0] // "")|\(.HostName // .DNSName // "unknown")|\(.DNSName // "")|\(.Location.Country // "")|\(.Location.City // "")"
         ' 2>/dev/null)
-        
+
         # Process each node
-        while IFS='|' read -r hostname dnsname country city; do
+        while IFS='|' read -r ip hostname dnsname country city; do
             # Skip invalid entries
             [[ "$hostname" == "unknown" ]] && continue
             [[ -z "$hostname" ]] && continue
-            
-            # Use full DNS name for display, short hostname for value
+            [[ -z "$ip" ]] && continue
+
+            # Use full DNS name for display, IP for value (always works)
             local display_name="$hostname"
-            local value_name="$hostname"  # Short hostname for tailscale set
+            local value_name="$ip"
             if [[ -n "$dnsname" ]] && [[ "$dnsname" != "$hostname" ]]; then
                 # Remove trailing dot from DNS name for display
                 display_name="${dnsname%.}"
@@ -188,7 +192,7 @@ build_menu() {
             if [[ "$dnsname" == *.mullvad.ts.net ]] || [[ "$hostname" =~ ^[a-z]{2}-[a-z]{3}-wg-[0-9]+$ ]]; then
                 # It's a Mullvad node (pattern: country-city-wg-number)
                 if [[ -n "$country" ]] && [[ "$country" != "" ]]; then
-                    # Store by country: value_name|display_name|city
+                    # Store by country: value_name(IP)|display_name|city
                     if [[ -n "${country_nodes[$country]}" ]]; then
                         country_nodes["$country"]+=";"
                     fi
@@ -200,7 +204,7 @@ build_menu() {
                     fi
                 fi
             else
-                # Personal/Tailnet device - store value|display
+                # Personal/Tailnet device - store value(IP)|display
                 personal_nodes+=("${value_name}|${display_name}")
             fi
         done <<< "$exit_nodes"
@@ -211,11 +215,13 @@ build_menu() {
         menu_items+=("")
         menu_values+=("SEPARATOR")
         menu_types+=("SEPARATOR")
-        
+        menu_display_names+=("")
+
         menu_items+=("${CYAN}Personal/Tailnet Devices${RESET}")
         menu_values+=("HEADER")
         menu_types+=("HEADER")
-        
+        menu_display_names+=("")
+
         for node_entry in "${personal_nodes[@]}"; do
             local value_name="${node_entry%%|*}"
             local display_name="${node_entry#*|}"
@@ -229,6 +235,7 @@ build_menu() {
             menu_items+=("  $marker $display_name")
             menu_values+=("$value_name")
             menu_types+=("NODE")
+            menu_display_names+=("$display_name")
         done
     fi
     
@@ -237,47 +244,50 @@ build_menu() {
         menu_items+=("")
         menu_values+=("SEPARATOR")
         menu_types+=("SEPARATOR")
-        
+        menu_display_names+=("")
+
         menu_items+=("${CYAN}Mullvad Exit Nodes${RESET}")
         menu_values+=("HEADER")
         menu_types+=("HEADER")
-        
+        menu_display_names+=("")
+
         # Sort countries alphabetically
         local sorted_countries=()
         while IFS= read -r country; do
             sorted_countries+=("$country")
         done < <(printf '%s\n' "${!country_nodes[@]}" | sort)
-        
+
         # Add countries (collapsed by default)
         for country in "${sorted_countries[@]}"; do
             # Count nodes in this country
             local node_count=$(echo "${country_nodes[$country]}" | tr ';' '\n' | grep -c .)
-            
+
             # Use globe icon for all countries
             local flag="$COUNTRY_ICON"
-            
+
             # Check if expanded
             local expand_marker="▶"
             if [[ -n "${expanded_countries[$country]}" ]]; then
                 expand_marker="▼"
             fi
-            
+
             menu_items+=("  $expand_marker $flag $country ($node_count nodes)")
             menu_values+=("COUNTRY:$country")
             menu_types+=("COUNTRY")
-            
+            menu_display_names+=("")
+
             # If expanded, show nodes
             if [[ -n "${expanded_countries[$country]}" ]]; then
                 # Parse nodes within country
                 local nodes="${country_nodes[$country]}"
                 IFS=';' read -ra node_array <<< "$nodes"
-                
+
                 # Sort the nodes array
                 local sorted_nodes=()
                 while IFS= read -r sorted_node; do
                     [[ -n "$sorted_node" ]] && sorted_nodes+=("$sorted_node")
                 done < <(printf '%s\n' "${node_array[@]}" | sort)
-                
+
                 for node_info in "${sorted_nodes[@]}"; do
                     [[ -z "$node_info" ]] && continue
 
@@ -299,6 +309,7 @@ build_menu() {
                     menu_items+=("$display_text")
                     menu_values+=("$value_name")
                     menu_types+=("NODE")
+                    menu_display_names+=("$full_name")
                 done
             fi
         done
@@ -309,27 +320,32 @@ build_menu() {
         menu_items+=("")
         menu_values+=("SEPARATOR")
         menu_types+=("SEPARATOR")
+        menu_display_names+=("")
         menu_items+=("${DIM}No exit nodes available.${RESET}")
         menu_values+=("ERROR")
         menu_types+=("ERROR")
+        menu_display_names+=("")
         menu_items+=("${DIM}To use Mullvad, connect Tailscale to Mullvad.${RESET}")
         menu_values+=("ERROR")
         menu_types+=("ERROR")
+        menu_display_names+=("")
     fi
 }
 
 # Apply selected exit node
+# Args: $1 = node value (IP), $2 = display name (optional, for user-friendly output)
 apply_exit_node() {
-    local hostname="$1"
-    
+    local node_value="$1"
+    local display_name="${2:-$1}"  # Use display name if provided, otherwise use value
+
     # Clear screen for better visibility
     clear
-    
+
     # Function to run tailscale command, retry with sudo if needed
     run_tailscale_set() {
         local cmd="$1"
         local output
-        
+
         # Try without sudo first
         if output=$(tailscale set $cmd 2>&1); then
             return 0
@@ -350,8 +366,8 @@ apply_exit_node() {
             fi
         fi
     }
-    
-    if [[ -z "$hostname" ]]; then
+
+    if [[ -z "$node_value" ]]; then
         echo "${YELLOW}Disabling exit node...${RESET}"
         if run_tailscale_set "--exit-node="; then
             echo "${GREEN}✓ Exit node disabled successfully${RESET}"
@@ -361,12 +377,12 @@ apply_exit_node() {
             return 1
         fi
     else
-        echo "${YELLOW}Setting exit node to: $hostname${RESET}"
-        if run_tailscale_set "--exit-node=$hostname"; then
-            echo "${GREEN}✓ Exit node set to $hostname${RESET}"
+        echo "${YELLOW}Setting exit node to: $display_name${RESET}"
+        if run_tailscale_set "--exit-node=$node_value"; then
+            echo "${GREEN}✓ Exit node set to $display_name${RESET}"
             return 0
         else
-            echo "${RED}✗ Failed to set exit node to $hostname${RESET}" >&2
+            echo "${RED}✗ Failed to set exit node to $display_name${RESET}" >&2
             return 1
         fi
     fi
@@ -451,15 +467,17 @@ show_select_menu() {
     # Filter out non-selectable items for select menu
     local clean_options=()
     local clean_values=()
-    
+    local clean_display_names=()
+
     for idx in "${!menu_items[@]}"; do
         local type="${menu_types[$idx]}"
-        
+
         if [[ "$type" == "NODE" ]] || [[ "$type" == "COUNTRY" ]]; then
             # Clean ANSI codes for select menu
             local clean_text=$(echo "${menu_items[$idx]}" | sed 's/\x1b\[[0-9;]*m//g')
             clean_options+=("$clean_text")
             clean_values+=("${menu_values[$idx]}")
+            clean_display_names+=("${menu_display_names[$idx]}")
         fi
     done
     
@@ -481,14 +499,15 @@ show_select_menu() {
             [0-9]*)
                 if [[ $REPLY -ge 1 ]] && [[ $REPLY -le ${#clean_options[@]} ]]; then
                     local selected_value="${clean_values[$((REPLY-1))]}"
-                    
+                    local selected_display="${clean_display_names[$((REPLY-1))]}"
+
                     # Handle country expansion
                     if [[ "$selected_value" == COUNTRY:* ]]; then
                         local country="${selected_value#COUNTRY:}"
                         echo "Expanding/collapsing country view not available in select mode."
                         echo "Please use arrow-key mode for full functionality."
                     else
-                        apply_exit_node "$selected_value"
+                        apply_exit_node "$selected_value" "$selected_display"
                         echo ""
                         echo "Press any key to continue..."
                         read -n1 -r
@@ -693,7 +712,8 @@ show_ansi_menu() {
             '')  # Enter key
                 local selected_value="${menu_values[$selected_index]}"
                 local selected_type="${menu_types[$selected_index]}"
-                
+                local selected_display="${menu_display_names[$selected_index]}"
+
                 if [[ "$selected_type" == "COUNTRY" ]]; then
                     # Toggle country expansion
                     local country="${selected_value#COUNTRY:}"
@@ -706,7 +726,7 @@ show_ansi_menu() {
                     build_menu
                 elif [[ "$selected_type" == "NODE" ]]; then
                     tput cnorm 2>/dev/null  # Show cursor
-                    apply_exit_node "$selected_value"
+                    apply_exit_node "$selected_value" "$selected_display"
                     echo ""
                     echo "Press any key to continue..."
                     read -n1 -r
