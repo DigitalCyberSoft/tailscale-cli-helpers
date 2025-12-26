@@ -1,3 +1,10 @@
+tailscale-cli-helpers (0.3.4-1) unstable; urgency=medium
+
+  * Fix tsexit to use IP address for reliable exit node selection
+  * Display full hostname in status messages for clarity
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 11 Dec 2025 12:00:00 +0800
+
 tailscale-cli-helpers (0.3.3-1) unstable; urgency=medium
 
   * Fix tsexit to use short hostname instead of FQDN for exit node selection

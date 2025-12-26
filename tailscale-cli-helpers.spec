@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.3.3
+Version:        0.3.4
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.3.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.4.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -23,7 +23,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.3.3
+%setup -q -n %{name}-0.3.4
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -106,6 +106,10 @@ fi
 %{_bindir}/%{name}-setup
 
 %changelog
+* Thu Dec 11 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.4-1
+- Fix tsexit to use IP address for reliable exit node selection
+- Display full hostname in status messages for clarity
+
 * Thu Dec 11 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.3-1
 - Fix tsexit to use short hostname instead of FQDN for exit node selection
 
