@@ -80,31 +80,57 @@ main() {
         exit 1
     fi
     
-    local resolved_args=()
-    
-    for arg in "$@"; do
-        if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]]; then
+    local scp_opts=()
+    local file_args=()
+    local i=1
+
+    # Separate scp options from source/target arguments
+    while [[ $i -le $# ]]; do
+        local arg="${!i}"
+
+        if [[ "$arg" == "-"* ]]; then
+            scp_opts+=("$arg")
+            ((i++))
+            # Options that take a value argument
+            case "$arg" in
+                -c|-D|-F|-i|-J|-l|-o|-P|-S|-X)
+                    if [[ $i -le $# ]]; then
+                        scp_opts+=("${!i}")
+                        ((i++))
+                    fi
+                    ;;
+            esac
+        else
+            file_args+=("$arg")
+            ((i++))
+        fi
+    done
+
+    # Resolve hostnames in source/target arguments
+    local resolved_file_args=()
+
+    for arg in "${file_args[@]}"; do
+        if [[ "$arg" == *":"* ]]; then
             # This looks like a remote host:path spec
             local host_part="${arg%%:*}"
             local path_part="${arg#*:}"
-            
-            # Try to resolve the hostname
+
+            # Resolve hostname interactively, showing which arg we're resolving
             local resolved_host
-            resolved_host=$(resolve_tailscale_host "$host_part")
+            resolved_host=$(resolve_host_interactive "$host_part" "$arg")
             if [[ $? -eq 0 ]]; then
-                resolved_args+=("${resolved_host}:${path_part}")
+                resolved_file_args+=("${resolved_host}:${path_part}")
             else
                 # Keep original if not resolvable
-                resolved_args+=("$arg")
+                resolved_file_args+=("$arg")
             fi
         else
-            # Keep argument as-is
-            resolved_args+=("$arg")
+            resolved_file_args+=("$arg")
         fi
     done
-    
-    # Execute scp with resolved arguments
-    exec scp "${resolved_args[@]}"
+
+    # Execute scp with options first, then resolved source/target
+    exec scp "${scp_opts[@]}" "${resolved_file_args[@]}"
 }
 
 # Run main function

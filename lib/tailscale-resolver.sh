@@ -362,6 +362,126 @@ find_multiple_hosts_matching() {
     }
 }
 
+# Interactive host resolution with selection menu
+# Usage: resolve_host_interactive <hostname> <context_label>
+# Outputs: resolved hostname or IP (with user@ prefix if applicable)
+# Returns: 0 on success, 1 on failure
+resolve_host_interactive() {
+    local search_input="$1"
+    local context_label="${2:-}"
+
+    # Check if user wants to use MagicDNS (opt-in)
+    local use_magicdns="${TAILSCALE_USE_MAGICDNS:-false}"
+    case "$use_magicdns" in
+        true|1|yes|YES|True|TRUE) use_magicdns=true ;;
+        *) use_magicdns=false ;;
+    esac
+
+    # ANSI color codes
+    local GREEN='\033[0;32m'
+    local YELLOW='\033[0;33m'
+    local RESET='\033[0m'
+
+    # Parse user@host format
+    local user_prefix=""
+    local search_hostname="$search_input"
+    if [[ "$search_input" == *"@"* ]]; then
+        user_prefix="${search_input%%@*}@"
+        search_hostname="${search_input#*@}"
+    fi
+
+    # Find all matching hosts
+    local matching_hosts=()
+    local matches
+    matches=$(find_all_matching_hosts "$search_hostname")
+
+    if [[ -n "$matches" ]]; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && matching_hosts+=("$line")
+        done <<< "$matches"
+    fi
+
+    if [[ ${#matching_hosts[@]} -eq 0 ]]; then
+        echo "Host '$search_hostname' not found in Tailscale network" >&2
+        return 1
+    elif [[ ${#matching_hosts[@]} -eq 1 ]]; then
+        # Single match - use directly
+        local host_info="${matching_hosts[0]}"
+        local ip=$(echo "$host_info" | cut -d ',' -f 1)
+        local real_hostname=$(echo "$host_info" | cut -d ',' -f 2)
+
+        if [[ "$use_magicdns" == "true" ]] && is_magicdns_working; then
+            echo -e "${GREEN}[TS]${RESET} Resolved ${GREEN}${search_hostname}${RESET} -> ${GREEN}${real_hostname}${RESET} (${ip})" >&2
+            echo "${user_prefix}${real_hostname}"
+        else
+            echo -e "${GREEN}[TS]${RESET} Resolved ${GREEN}${search_hostname}${RESET} -> ${GREEN}${ip}${RESET} (${real_hostname})" >&2
+            echo "${user_prefix}${ip}"
+        fi
+        return 0
+    else
+        # Multiple matches - show selection menu with context
+        if [[ -n "$context_label" ]]; then
+            echo -e "${YELLOW}Resolving host for:${RESET} ${context_label}" >&2
+        fi
+        echo "Multiple hosts found matching '$search_hostname':" >&2
+
+        # Sort hosts: online first, then offline
+        local online_hosts=()
+        local offline_hosts=()
+
+        for host in "${matching_hosts[@]}"; do
+            local host_status=$(echo "$host" | cut -d ',' -f 4)
+            if [[ "$host_status" == "offline" ]]; then
+                offline_hosts+=("$host")
+            else
+                online_hosts+=("$host")
+            fi
+        done
+
+        local sorted_hosts=("${online_hosts[@]}" "${offline_hosts[@]}")
+
+        # Display options
+        for i in "${!sorted_hosts[@]}"; do
+            local host_info="${sorted_hosts[$i]}"
+            local host_ip=$(echo "$host_info" | cut -d ',' -f 1)
+            local host_name=$(echo "$host_info" | cut -d ',' -f 2)
+            local host_os=$(echo "$host_info" | cut -d ',' -f 3)
+            local host_status=$(echo "$host_info" | cut -d ',' -f 4)
+
+            echo -e "${GREEN}[$((i+1))]${RESET} $host_name ($host_ip) - $host_os - $host_status" >&2
+        done
+
+        # Get selection
+        local selection
+        if [ -t 0 ]; then
+            read -p "Select host number ([1]-${#sorted_hosts[@]}): " selection </dev/tty
+        else
+            echo "Non-interactive mode, selecting first match" >&2
+            selection=1
+        fi
+
+        if [ -z "$selection" ]; then
+            selection=1
+        fi
+
+        if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le "${#sorted_hosts[@]}" ]; then
+            local selected_host="${sorted_hosts[$((selection-1))]}"
+            local selected_ip=$(echo "$selected_host" | cut -d ',' -f 1)
+            local selected_hostname=$(echo "$selected_host" | cut -d ',' -f 2)
+
+            if [[ "$use_magicdns" == "true" ]] && is_magicdns_working; then
+                echo "${user_prefix}${selected_hostname}"
+            else
+                echo "${user_prefix}${selected_ip}"
+            fi
+            return 0
+        else
+            echo "Invalid selection" >&2
+            return 1
+        fi
+    fi
+}
+
 # Get all Tailscale hosts for completion
 get_all_tailscale_hosts() {
     local prefix="${1:-}"

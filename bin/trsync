@@ -96,12 +96,11 @@ main() {
             # This looks like a remote host:path spec (but not rsync daemon :: syntax)
             local host_part="${arg%%:*}"
             local path_part="${arg#*:}"
-            
-            # Try to resolve the hostname
+
+            # Resolve hostname interactively, showing which arg we're resolving
             local resolved_host
-            resolved_host=$(resolve_tailscale_host "$host_part" "$verbose")
+            resolved_host=$(resolve_host_interactive "$host_part" "$arg")
             if [[ $? -eq 0 ]]; then
-                [[ "$verbose" == "true" ]] && echo "Resolved $host_part to $resolved_host" >&2
                 resolved_args+=("${resolved_host}:${path_part}")
             else
                 # Keep original if not resolvable

@@ -121,10 +121,10 @@ main() {
         exit 1
     fi
     
-    # Try to resolve hostname
+    # Resolve hostname interactively
     local resolved_host
-    resolved_host=$(resolve_tailscale_host "$target_host")
-    
+    resolved_host=$(resolve_host_interactive "$target_host" "$target_host")
+
     if [[ $? -eq 0 ]]; then
         exec sftp "${sftp_args[@]}" "$resolved_host"
     else
