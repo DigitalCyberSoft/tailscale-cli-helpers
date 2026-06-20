@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+#
+# tsping - Tailscale ping helper
+# ping with Tailscale hostname resolution
+#
+
+# Detect shell and set compatibility options
+if [ -n "$ZSH_VERSION" ]; then
+    emulate -L bash
+    setopt BASH_REMATCH
+    setopt KSH_ARRAYS
+fi
+
+# Enable safety features
+set -o pipefail
+IFS=$' \t\n'
+
+# Version
+TSPING_VERSION="0.2.1"
+
+# Check dependencies
+if ! command -v ping >/dev/null 2>&1; then
+    echo "Error: ping is required but not installed" >&2
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common utilities
+if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+fi
+
+# Source the shared resolver library
+if [[ -f "$SCRIPT_DIR/../lib/tailscale-resolver.sh" ]]; then
+    source "$SCRIPT_DIR/../lib/tailscale-resolver.sh"
+elif [[ -f "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh" ]]; then
+    source "/usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh"
+else
+    echo "Error: Cannot find tailscale-resolver.sh library" >&2
+    exit 1
+fi
+
+# Show help
+show_tsping_help() {
+    echo "tsping - ping with Tailscale hostname resolution v$TAILSCALE_CLI_HELPERS_VERSION"
+    echo ""
+    echo "Usage:"
+    echo "  tsping [ping_options] <hostname>"
+    echo "  ts ping [ping_options] <hostname>"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help       Show this help message"
+    echo "  -V, --version    Show version information"
+    echo ""
+    echo "ping with automatic Tailscale hostname resolution and fuzzy matching."
+    echo "The last non-option argument is resolved as the destination host;"
+    echo "all other options are passed through to ping."
+}
+
+# Main function
+main() {
+    # Handle version and help early
+    for arg in "$@"; do
+        case "$arg" in
+            --version|-V)
+                echo "tsping $TAILSCALE_CLI_HELPERS_VERSION"
+                exit 0
+                ;;
+            --help|-h)
+                show_tsping_help
+                exit 0
+                ;;
+        esac
+    done
+
+    if [[ $# -eq 0 ]]; then
+        show_tsping_help
+        exit 1
+    fi
+
+    # The destination is the last non-option argument; everything else is
+    # passed through to ping unchanged (ping's synopsis is "ping [options] host")
+    local last_host_pos=0
+    local i=1
+    while [[ $i -le $# ]]; do
+        if [[ "${!i}" != "-"* ]]; then
+            last_host_pos=$i
+        fi
+        ((i++))
+    done
+
+    if [[ $last_host_pos -eq 0 ]]; then
+        echo "Error: no host specified" >&2
+        show_tsping_help
+        exit 1
+    fi
+
+    local ping_args=()
+    local target=""
+    i=1
+    while [[ $i -le $# ]]; do
+        if [[ $i -eq $last_host_pos ]]; then
+            target="${!i}"
+        else
+            ping_args+=("${!i}")
+        fi
+        ((i++))
+    done
+
+    # ping takes no user@ prefix; strip any that was supplied
+    target="${target##*@}"
+
+    # Resolve interactively (selection menu on multiple matches); fall back to
+    # the literal target if it is not in the tailnet (matches tscp behavior)
+    local resolved
+    resolved=$(resolve_host_interactive "$target" "ping")
+    if [[ $? -ne 0 ]]; then
+        resolved="$target"
+    fi
+
+    exec ping "${ping_args[@]}" "$resolved"
+}
+
+# Run main function
+main "$@"

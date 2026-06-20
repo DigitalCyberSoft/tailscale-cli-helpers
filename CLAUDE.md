@@ -102,7 +102,7 @@ gh release create vX.Y.Z --title "Title" --notes "Notes" package.rpm package.deb
 
 ## File Structure
 
-- `bin/` - Executable scripts (ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tmussh)
+- `bin/` - Executable scripts (ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tsping, tmussh)
 - `lib/` - Shared libraries (common.sh, tailscale-resolver.sh)
 - `man/man1/` - Man pages for all commands
 - `bash-completion/` - Shell completion files

@@ -84,6 +84,7 @@ _check_available_commands() {
     command -v sftp >/dev/null 2>&1 && cmds+=("sftp")
     command -v rsync >/dev/null 2>&1 && cmds+=("rsync")
     command -v mussh >/dev/null 2>&1 && cmds+=("mussh")
+    command -v ping >/dev/null 2>&1 && cmds+=("ping")
     
     echo "${cmds[@]}"
 }
@@ -223,10 +224,53 @@ _ts_complete() {
                 COMPREPLY=($(compgen -W "$options" -- "$cur"))
             fi
             ;;
+        ping)
+            # Ping options and hosts
+            if [[ "$cur" == -* ]]; then
+                local opts="-c -i -W -s -t -4 -6 -n -q -v -h --help -V --version"
+                if [[ "$_IS_ZSH" == "true" ]]; then
+                    compadd $(echo "$opts")
+                else
+                    COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+                fi
+            else
+                local hosts=$(_get_tailscale_hosts "" "$cur")
+                if [[ "$_IS_ZSH" == "true" ]]; then
+                    [[ -n "$hosts" ]] && compadd $(echo "$hosts")
+                else
+                    [[ -n "$hosts" ]] && COMPREPLY=($(compgen -W "$hosts" -- "$cur"))
+                fi
+            fi
+            ;;
     esac
 }
 
 # Individual command completions
+_tsping_complete() {
+    local cur
+    if [[ "$_IS_ZSH" == "true" ]]; then
+        cur="${words[CURRENT]}"
+    else
+        cur="${COMP_WORDS[COMP_CWORD]}"
+    fi
+
+    if [[ "$cur" == -* ]]; then
+        local opts="-c -i -W -s -t -4 -6 -n -q -v -h --help -V --version"
+        if [[ "$_IS_ZSH" == "true" ]]; then
+            compadd $(echo "$opts")
+        else
+            COMPREPLY=($(compgen -W "$opts" -- "$cur"))
+        fi
+    else
+        local hosts=$(_get_tailscale_hosts "" "$cur")
+        if [[ "$_IS_ZSH" == "true" ]]; then
+            [[ -n "$hosts" ]] && compadd $(echo "$hosts")
+        else
+            [[ -n "$hosts" ]] && COMPREPLY=($(compgen -W "$hosts" -- "$cur"))
+        fi
+    fi
+}
+
 _tssh_complete() {
     local cur
     if [[ "$_IS_ZSH" == "true" ]]; then
@@ -407,6 +451,7 @@ if [[ "$_IS_ZSH" == "true" ]]; then
     # Zsh completion setup
     compdef _ts_complete ts
     compdef _tssh_complete tssh
+    compdef _tsping_complete tsping
     compdef _tscp_complete tscp
     compdef _tsftp_complete tsftp
     compdef _trsync_complete trsync
@@ -417,6 +462,7 @@ else
     # Bash completion setup
     complete -F _ts_complete ts
     complete -F _tssh_complete tssh
+    complete -F _tsping_complete tsping
     complete -F _tscp_complete tscp
     complete -F _tsftp_complete tsftp
     complete -F _trsync_complete trsync

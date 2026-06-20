@@ -38,6 +38,7 @@ show_help() {
     echo "  ts ssh_copy_id <hostname>        Copy SSH key to hostname"
     echo "  ts scp <source> <dest>           Copy files via SCP"
     echo "  ts sftp <hostname>               Start SFTP session"
+    echo "  ts ping <hostname>               Ping a host"
     echo "  ts rsync [options] <src> <dst>   Sync files via rsync"
     echo "  ts mussh [options]               Run mussh with Tailscale hosts"
     echo "  ts exit                          Manage Tailscale exit nodes"
@@ -129,6 +130,10 @@ main() {
         exit)
             # Exit node manager
             exec "$SCRIPT_DIR/tsexit" "$@"
+            ;;
+        ping)
+            # Ping with Tailscale resolution
+            exec "$SCRIPT_DIR/tsping" "$@"
             ;;
         *)
             # Default action: treat first argument as hostname for SSH

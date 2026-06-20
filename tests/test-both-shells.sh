@@ -52,6 +52,7 @@ check_command_availability() {
     run_test "tsftp command exists" "command -v tsftp" 0
     run_test "trsync command exists" "command -v trsync" 0
     run_test "tssh_copy_id command exists" "command -v tssh_copy_id" 0
+    run_test "tsping command exists" "command -v tsping" 0
     
     # Test optional tmussh command
     if command -v mussh >/dev/null 2>&1; then
@@ -80,6 +81,8 @@ test_basic_functionality() {
     # Test ts dispatcher functionality
     run_test "ts ssh dispatching" "ts ssh 2>&1 | grep -q 'Usage'" 0
     run_test "ts help shows subcommands" "ts help | grep -q 'ssh'" 0
+    run_test "ts ping dispatching" "ts ping --help 2>&1 | grep -q 'Usage'" 0
+    run_test "ts help shows ping" "ts help | grep -q 'ping'" 0
 }
 
 # Function to test man pages
@@ -87,7 +90,7 @@ test_man_pages() {
     local shell_name="$1"
     echo -e "\n${CYAN}Testing man pages in $shell_name${RESET}"
     
-    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh")
+    local commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tmussh" "tsping")
     for cmd in "${commands[@]}"; do
         run_test "$cmd man page" "man $cmd 2>/dev/null | head -1 | grep -qi '$cmd'" 0
     done
@@ -116,8 +119,8 @@ test_bash_completions() {
     done
     
     if [[ "$completion_loaded" == "true" ]]; then
-        run_test "completion functions loaded" "declare -F _tssh_completion" 0
-        run_test "ts completion loaded" "declare -F _ts_completion" 0
+        run_test "completion functions loaded" "declare -F _tssh_complete" 0
+        run_test "ts completion loaded" "declare -F _ts_complete" 0
     else
         echo -e "  ${YELLOW}⚠ No completion file found, skipping completion tests${RESET}"
     fi

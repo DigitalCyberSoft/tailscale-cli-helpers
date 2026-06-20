@@ -32,6 +32,9 @@ Sync files via rsync with Tailscale hostname resolution
 .BR mussh " [\fIoptions\fR]"
 Run mussh for parallel SSH execution on Tailscale nodes
 .TP
+.BR ping " \fIhostname\fR"
+Ping a Tailscale node with hostname resolution
+.TP
 .BR help
 Show help message and available subcommands
 .SH DEFAULT BEHAVIOR
@@ -81,6 +84,7 @@ Not all subcommands may be available. Commands are only enabled if their underly
 .BR trsync (1),
 .BR tssh_copy_id (1),
 .BR tmussh (1),
+.BR tsping (1),
 .BR tailscale (1)
 .SH AUTHOR
 .SH BUGS

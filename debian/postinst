@@ -38,7 +38,7 @@ case "$1" in
         echo "================================================================"
         echo "Tailscale CLI helpers have been installed successfully!"
         echo ""
-        echo "Commands are now available: ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tmussh"
+        echo "Commands are now available: ts, tssh, tscp, tsftp, trsync, tssh_copy_id, tsping, tmussh"
         echo "These are immediately available in all shells."
         echo ""
         echo "Bash completions will be available in new bash sessions."

@@ -18,6 +18,7 @@ trsync -av dir/ myhost:/        # Sync directories (rsync)
 tmussh -h "web-*" -c "uptime"   # Parallel SSH execution
 tssh_copy_id myhost             # Copy SSH keys
 tsexit                          # Manage exit nodes interactively
+ts ping myhost                  # Ping a Tailscale host
 ts ssh_copy_id myhost           # Via dispatcher
 ```
 
@@ -52,7 +53,10 @@ ts ssh_copy_id myhost           # Via dispatcher
 
 ## 🆕 What's New
 
-### v0.3.1 (Latest)
+### v0.3.6 (Latest)
+- **New `ts ping` command**: Ping Tailscale nodes by name with the same hostname resolution and interactive selection as `tssh` (also available as standalone `tsping`)
+
+### v0.3.1
 - **Fixed tab completion**: Exclude Mullvad exit nodes from SSH/SCP/SFTP/rsync completions
 - **Enhanced tsexit**: Improved interactive exit node selection with better Mullvad country grouping
 
@@ -223,6 +227,9 @@ ts ssh hostname           # Explicit SSH
 ts scp file.txt host:/path    # Copy files
 ts rsync -av dir/ host:/path/ # Sync directories
 
+# Connectivity
+ts ping host                  # Ping a host
+
 # Parallel operations (if mussh installed)
 ts mussh -h host1 host2 -c "uptime"  # Execute on multiple hosts
 ```
@@ -368,6 +375,23 @@ tsexit --list                           # Non-interactive listing
 # - Personal/Tailnet devices in separate section
 # - Current exit node indicator
 # - Works without Mullvad subscription (shows only personal devices)
+```
+
+### 🛰️ Ping Tailscale Nodes
+
+The `tsping` command (and `ts ping`) pings a Tailscale node by name, using the same hostname resolution and interactive selection as `tssh`:
+
+```bash
+# Ping a Tailscale node (resolves the hostname, then pings the IP)
+tsping myhost
+ts ping myhost                           # Via dispatcher
+
+# ping options are passed through to the system ping
+ts ping -c 4 myhost                      # Send four packets
+tsping -4 myhost                         # Force IPv4
+
+# Non-Tailscale names fall back to a normal ping
+ts ping example.com
 ```
 
 ## 🔧 How It Works

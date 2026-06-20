@@ -48,6 +48,7 @@ class TailscaleCliHelpers < Formula
     bash_completion.install_symlink bin/"tsftp" if File.exist?("#{bin}/tsftp")
     bash_completion.install_symlink bin/"trsync" if File.exist?("#{bin}/trsync")
     bash_completion.install_symlink bin/"tssh_copy_id"
+    bash_completion.install_symlink bin/"tsping"
   end
 
   def post_install
@@ -70,6 +71,7 @@ class TailscaleCliHelpers < Formula
       Available commands:
         ts [hostname]                    # Quick SSH to Tailscale nodes
         tssh hostname                    # SSH to Tailscale host
+        tsping hostname                  # Ping a Tailscale host
         tscp file.txt host:/path/        # Copy files (if scp available)
         tsftp hostname                   # SFTP to Tailscale host (if sftp available)
         trsync -av dir/ host:/path/      # Sync directories (if rsync available)

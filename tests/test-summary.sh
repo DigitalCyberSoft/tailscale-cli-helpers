@@ -40,7 +40,7 @@ fi
 echo
 
 echo -e "${BLUE}🔍 Command Availability:${RESET}"
-commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id")
+commands=("ts" "tssh" "tscp" "tsftp" "trsync" "tssh_copy_id" "tsping")
 optional_commands=("tmussh")
 available_count=0
 

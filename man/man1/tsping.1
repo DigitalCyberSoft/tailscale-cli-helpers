@@ -1,0 +1,83 @@
+.TH TSPING 1 "June 2026" "Tailscale CLI Helpers 0.3.6" "User Commands"
+.SH NAME
+tsping \- ping Tailscale nodes with automatic hostname resolution
+.SH SYNOPSIS
+.B tsping
+[\fIping_options\fR] \fIhostname\fR
+.br
+.B ts ping
+[\fIping_options\fR] \fIhostname\fR
+.SH DESCRIPTION
+.B tsping
+pings a Tailscale node by name, resolving the hostname the same way \fBtssh\fR does (case-insensitive substring matching with fuzzy ordering), then running the system \fBping\fR against the resolved Tailscale IP address. If multiple nodes match, an interactive selection menu is shown. If the name does not match any Tailscale node, the literal name is passed to \fBping\fR so that regular DNS or public hosts still work.
+.PP
+The last non-option argument is treated as the destination host; every other argument is passed through unchanged to the underlying \fBping\fR command.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show help message and exit.
+.TP
+.BR \-V ", " \-\-version
+Show version information and exit.
+.PP
+All standard ping options (for example \fB\-c\fR, \fB\-i\fR, \fB\-W\fR, \fB\-4\fR, \fB\-6\fR) are passed through to the underlying ping command.
+.SH EXAMPLES
+.TP
+Ping a Tailscale node:
+.B ts ping mynode
+.TP
+Send four packets:
+.B ts ping -c 4 mynode
+.TP
+Use the standalone command:
+.B tsping -c 4 mynode
+.TP
+Force IPv4:
+.B ts ping -4 mynode
+.SH HOSTNAME RESOLUTION
+\fBtsping\fR uses the following hostname resolution process:
+.IP 1. 4
+Queries Tailscale status for all known nodes
+.IP 2. 4
+Performs case-insensitive substring matching against node hostnames, ordered by Levenshtein distance
+.IP 3. 4
+Prompts with an interactive menu when more than one node matches (online nodes listed first)
+.IP 4. 4
+Prefers MagicDNS names when enabled and working, otherwise uses IP addresses
+.IP 5. 4
+Falls back to pinging the literal name if the host is not in the Tailscale network
+.SH SECURITY
+\fBtsping\fR implements several security measures:
+.IP \(bu 4
+Input validation to prevent command injection
+.IP \(bu 4
+JSON structure validation for Tailscale responses
+.IP \(bu 4
+Safe parameter handling using proper separation
+.SH FILES
+.TP
+.I /usr/share/tailscale-cli-helpers/lib/tailscale-resolver.sh
+Shared library for hostname resolution (system installation)
+.TP
+.I ~/.config/tailscale-cli-helpers/lib/tailscale-resolver.sh
+Shared library for hostname resolution (user installation)
+.SH EXIT STATUS
+.TP
+.B 0
+Successful ping or hostname resolution
+.TP
+.B 1
+Error in arguments, dependencies, or ping failure
+.SH SEE ALSO
+.BR ping (8),
+.BR tailscale (1),
+.BR ts (1),
+.BR tssh (1),
+.BR tscp (1),
+.BR tsftp (1),
+.BR trsync (1),
+.BR tssh_copy_id (1),
+.BR tmussh (1)
+.SH AUTHOR
+.SH BUGS
+Report bugs at https://github.com/DigitalCyberSoft/tailscale-cli-helpers/issues
