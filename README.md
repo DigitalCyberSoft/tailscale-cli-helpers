@@ -1,528 +1,329 @@
 # Tailscale CLI Helpers
 
-Comprehensive Bash/Zsh functions for secure SSH, file transfer, and parallel operations on Tailscale nodes with advanced hostname completion and fuzzy matching.
+Bash and Zsh wrappers around `ssh`, `scp`, `sftp`, `rsync`, and friends that resolve
+Tailscale hostnames for you. Type a partial name and the helpers look it up in
+`tailscale status`, fall back to MagicDNS or the node's IP, and hand off to the real
+tool. Tab completion and fuzzy matching are included, and plain SSH still works for
+hosts that aren't on your tailnet.
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
-# One-line install
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.1.tar.gz
-tar -xzf v0.3.1.tar.gz && cd tailscale-cli-helpers-0.3.1
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.6.tar.gz
+tar -xzf v0.3.6.tar.gz && cd tailscale-cli-helpers-0.3.6
 ./setup.sh
-
-# Then use commands
-tssh myhost                     # SSH to Tailscale host
-tscp file.txt myhost:/path/     # Copy files (SCP)
-tsftp myhost                    # Secure file transfer (SFTP)
-trsync -av dir/ myhost:/        # Sync directories (rsync)
-tmussh -h "web-*" -c "uptime"   # Parallel SSH execution
-tssh_copy_id myhost             # Copy SSH keys
-tsexit                          # Manage exit nodes interactively
-ts ping myhost                  # Ping a Tailscale host
-ts ssh_copy_id myhost           # Via dispatcher
 ```
 
-## ✨ Features
+Then:
 
-### 🔐 Secure SSH & File Operations
-- **Quick SSH connections**: Use `tssh hostname` or `ts hostname` to connect to any Tailscale node
-- **SSH options passthrough**: Full support for SSH flags like `-p 2222`, `-i keyfile`, etc.
-- **SSH key management**: `tssh_copy_id` and `ts ssh_copy_id` for secure key distribution
-- **Security hardened**: Input validation, command injection prevention, and secure argument handling
+```bash
+tssh myhost                     # SSH to a Tailscale host
+tscp file.txt myhost:/path/     # Copy files (scp)
+tsftp myhost                    # Interactive SFTP session
+trsync -av dir/ myhost:/        # Sync directories (rsync)
+tsping myhost                   # Ping a host
+tssh_copy_id myhost             # Install your SSH key
+tsexit                          # Pick an exit node from a menu
+tmussh -h "web-*" -c "uptime"   # Run a command on many hosts (needs mussh)
+```
 
-### 📁 Multiple File Transfer Methods
-- **SCP support**: `tscp` for traditional file transfers with Tailscale hostname resolution
-- **Modern SFTP**: `tsftp` command as secure alternative to deprecated SCP protocol
-- **Rsync support**: `trsync` for efficient file synchronization with Tailscale hosts
-- **Conditional loading**: Commands only load when underlying tools (scp, sftp, rsync) are available
+## Commands
 
-### 🚀 Advanced Features
-- **Exit Node Management**: `tsexit` provides interactive menu for managing Tailscale exit nodes with Mullvad country grouping
-- **Parallel SSH**: `tmussh` for executing commands on multiple hosts simultaneously (requires mussh)
-- **Version-aware completion**: Detects mussh version and offers appropriate parameters
-- **Wildcard support**: Use patterns like `"web-*"` for multi-host operations
-- **Intelligent tab completion**: Autocomplete Tailscale hostnames with Levenshtein distance sorting
-- **Fuzzy matching**: Find hosts even with partial names, sorted by similarity
+| Command | What it does |
+|---------|--------------|
+| `tssh` / `ts` | SSH to a host by name; `ts` also dispatches the subcommands below |
+| `tscp` | File copy over scp |
+| `tsftp` | Interactive SFTP session |
+| `trsync` | Directory sync over rsync |
+| `tsping` / `ts ping` | Ping a host (resolves the name, pings the IP) |
+| `tssh_copy_id` | Install SSH keys via ssh-copy-id, including through a ProxyJump |
+| `tsexit` / `ts exit` | Interactive exit node menu with Mullvad country grouping |
+| `tmussh` | Parallel SSH across multiple hosts (requires mussh) |
 
-### 🔧 Smart Resolution & Compatibility
-- **Smart resolution**: Automatically uses MagicDNS when available, falls back to IPs
-- **SSH fallback**: Seamlessly falls back to regular SSH for non-Tailscale hosts
-- **Multi-shell support**: Works with both Bash and Zsh with full compatibility
-- **Conditional features**: Only enables commands when required tools are installed
-- **Clean completion**: Internal functions hidden from tab completion
+All of them accept the underlying tool's flags (`-p`, `-i`, `-r`, `-o ...`, and so on)
+and pass them straight through. `tscp`, `tsftp`, `trsync`, and `tmussh` only load when
+the tool they wrap is actually installed.
 
-## 🆕 What's New
+Hostname resolution uses a Levenshtein-distance match, so partial names work and
+completion results are ordered by similarity. Mullvad exit nodes are excluded from the
+SSH/copy/sync completions so they don't clutter the list.
 
-### v0.3.6 (Latest)
-- **New `ts ping` command**: Ping Tailscale nodes by name with the same hostname resolution and interactive selection as `tssh` (also available as standalone `tsping`)
+## Requirements
 
-### v0.3.1
-- **Fixed tab completion**: Exclude Mullvad exit nodes from SSH/SCP/SFTP/rsync completions
-- **Enhanced tsexit**: Improved interactive exit node selection with better Mullvad country grouping
+Required:
 
-### v0.3.0
-- **New `tsexit` command**: Interactive exit node management with Mullvad country grouping
-- **Restored functionality**: Fixed missing features from previous releases
-- **Improved multi-host selection**: Better prompts showing default options
-- **Reorganized completions**: Moved to dedicated bash-completion directory
+- Bash 4.0+ or Zsh
+- `tailscale`, installed and running
+- `jq`
+- `ssh`
 
-## 📋 Requirements
-
-### Core Requirements
-- **Shell**: Bash 4.0+ or Zsh
-- **JSON processor**: `jq` for parsing Tailscale status
-- **Tailscale CLI**: `tailscale` command must be installed and running
-- **SSH client**: Standard `ssh` command
-
-### Optional Dependencies (Auto-detected)
-- **scp**: For `tscp` file transfer functionality
-- **sftp**: For `tsftp` secure file transfer functionality  
-- **rsync**: For `trsync` synchronization functionality
-- **mussh**: For `tmussh` parallel SSH execution
-
-**Note**: Commands are conditionally loaded - only available tools will be enabled.
+Optional (each enables the matching command when present): `scp`, `sftp`, `rsync`, `mussh`.
 
 ## Installation
 
-### 🚀 Quick Install (Recommended)
+### From a release tarball
 
 ```bash
-# Download latest release
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.1.tar.gz
-tar -xzf v0.3.1.tar.gz
-cd tailscale-cli-helpers-0.3.1
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.6.tar.gz
+tar -xzf v0.3.6.tar.gz
+cd tailscale-cli-helpers-0.3.6
 
-# Install for current user
-./setup.sh
+./setup.sh                # current user
+sudo ./setup.sh --system  # system-wide
 
-# OR install system-wide (requires sudo)
-sudo ./setup.sh --system
-
-# Test installation
-./tests/test-both-shells.sh
+./tests/test-both-shells.sh   # optional: verify
 ```
 
-### 📦 Package Installation
+### Packages
 
-#### RPM (Fedora/RHEL/CentOS)
+RPM (Fedora/RHEL/CentOS):
+
 ```bash
-# Main package
-sudo rpm -i tailscale-cli-helpers-0.3.1-1.noarch.rpm
-
-# Optional: Install tmussh for parallel SSH (requires mussh)
-sudo rpm -i tailscale-cli-helpers-mussh-0.3.1-1.noarch.rpm
+sudo rpm -i tailscale-cli-helpers-0.3.6-1.noarch.rpm
+sudo rpm -i tailscale-cli-helpers-mussh-0.3.6-1.noarch.rpm   # optional, for tmussh
 ```
 
-#### DEB (Ubuntu/Debian)
+DEB (Ubuntu/Debian):
+
 ```bash
-# Main package
-sudo dpkg -i tailscale-cli-helpers_0.3.1-2_all.deb
-
-# Optional: Install tmussh for parallel SSH (requires mussh)
-sudo dpkg -i tailscale-cli-helpers-mussh_0.3.1-2_all.deb
+sudo dpkg -i tailscale-cli-helpers_0.3.6-2_all.deb
+sudo dpkg -i tailscale-cli-helpers-mussh_0.3.6-2_all.deb     # optional, for tmussh
 ```
 
-#### Homebrew (macOS)
+Homebrew (macOS):
+
 ```bash
 brew install https://raw.githubusercontent.com/DigitalCyberSoft/tailscale-cli-helpers/main/tailscale-cli-helpers.rb
 ```
 
-### Manual Install (Local Development)
+### From a clone
 
 ```bash
-# Clone the repository
 git clone https://github.com/digitalcybersoft/tailscale-cli-helpers.git
 cd tailscale-cli-helpers
 
-# Run the setup script (auto-detects privileges)
-./setup.sh              # Install for current user (asks about ts dispatcher)
-sudo ./setup.sh         # Install system-wide (includes ts dispatcher)
-
-# Or explicitly specify installation type
-./setup.sh --user       # Force user installation (asks about ts dispatcher)
-sudo ./setup.sh --system # Force system-wide installation (includes ts dispatcher)
+./setup.sh          # current user; asks whether to install the ts dispatcher
+sudo ./setup.sh     # system-wide; includes the ts dispatcher
 ```
 
-**Note:** The one-line installer automatically downloads the latest version from GitHub. When installing manually, you'll be asked whether to install the `ts` dispatcher command.
+`setup.sh` auto-detects privileges. Use `--user` or `--system` to force one.
 
-**System-wide installation locations:**
+System-wide install locations:
+
 - Scripts: `/usr/share/tailscale-cli-helpers/`
-- Shell loading: `/etc/profile.d/tailscale-cli-helpers.sh`
+- Shell loader: `/etc/profile.d/tailscale-cli-helpers.sh`
 - Bash completion: `/etc/bash_completion.d/tailscale-cli-helpers`
 
-**User installation locations:**
+User install locations:
+
 - Scripts: `~/.config/tailscale-cli-helpers/`
-- Shell loading: Added to `~/.bashrc` or `~/.zshrc`
+- Shell loader: appended to `~/.bashrc` or `~/.zshrc`
 
-
-### 🔄 Updating
-
-```bash
-# Update to latest version (manual installation)
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.1.tar.gz
-tar -xzf v0.3.1.tar.gz
-cd tailscale-cli-helpers-0.3.1
-./setup.sh  # Will update existing installation
-
-# Update package installations
-sudo rpm -U tailscale-cli-helpers-0.3.1-1.noarch.rpm     # RPM systems
-sudo dpkg -i tailscale-cli-helpers_0.3.1-2_all.deb       # DEB systems
-```
-
-### 🍎 macOS Installation
+### Updating
 
 ```bash
-# Install dependencies first
-brew install jq tailscale
-
-# Download and install
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.1.tar.gz
-tar -xzf v0.3.1.tar.gz
-cd tailscale-cli-helpers-0.3.1
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/v0.3.6.tar.gz
+tar -xzf v0.3.6.tar.gz
+cd tailscale-cli-helpers-0.3.6
 ./setup.sh
 
-# macOS installs to user locations:
-# - Scripts: ~/.config/tailscale-cli-helpers/
-# - Shell loading: Added to ~/.zshrc or ~/.bash_profile
+# or, for packages
+sudo rpm -U tailscale-cli-helpers-0.3.6-1.noarch.rpm
+sudo dpkg -i tailscale-cli-helpers_0.3.6-2_all.deb
 ```
 
-## 🎯 Usage
-
-### SSH Connections
-
-The main command is `tssh`, with `ts` as a multi-command dispatcher:
+### macOS notes
 
 ```bash
-# Direct tssh usage
-tssh hostname             # Connects as root@hostname
-tssh user@hostname        # With specific user
-
-# ts dispatcher usage
-ts hostname               # SSH to hostname (default)
-ts ssh hostname           # Explicit SSH command
-ts ssh user@hostname      # SSH with user
-
-# With SSH options
-tssh hostname -p 2222                    # Custom port
-tssh hostname -i ~/.ssh/custom_key       # Custom key
-ts ssh hostname -o StrictHostKeyChecking=no # SSH options via dispatcher
-
-# Debug mode
-tssh -v hostname          # Shows verbose debug output
+brew install jq tailscale
 ```
 
-### ts Dispatcher Command
+Then install from a tarball as above. On macOS everything goes to the user locations
+and the loader is added to `~/.zshrc` or `~/.bash_profile`.
 
-The `ts` command works as a dispatcher for all Tailscale operations:
+## Usage
+
+### SSH
 
 ```bash
-# Show available commands
-ts                        # Shows help and available subcommands
+tssh hostname                   # connects as root@hostname
+tssh user@hostname
+tssh hostname -p 2222           # custom port
+tssh hostname -i ~/.ssh/key     # custom key
+tssh -v hostname                # verbose resolution output
 
-# SSH (default behavior)
-ts hostname               # SSH to hostname
-ts ssh hostname           # Explicit SSH
-
-# File operations
-ts scp file.txt host:/path    # Copy files
-ts rsync -av dir/ host:/path/ # Sync directories
-
-# Connectivity
-ts ping host                  # Ping a host
-
-# Parallel operations (if mussh installed)
-ts mussh -h host1 host2 -c "uptime"  # Execute on multiple hosts
+ts hostname                     # same as tssh hostname
+ts ssh hostname                 # explicit
+ts ssh hostname -o StrictHostKeyChecking=no
 ```
 
-### File Transfers with tscp
+### The ts dispatcher
 
-The `tscp` command provides SCP functionality with Tailscale hostname resolution:
+`ts` on its own prints the available subcommands. Otherwise:
 
 ```bash
-# Copy file to remote host
+ts hostname                     # SSH (default)
+ts ssh hostname
+ts scp file.txt host:/path
+ts rsync -av dir/ host:/path/
+ts ping host
+ts mussh -h host1 host2 -c "uptime"
+```
+
+### tscp
+
+```bash
 tscp localfile.txt hostname:/remote/path/
-tscp localfile.txt user@hostname:/remote/path/
-
-# Copy from remote host
 tscp hostname:/remote/file.txt ./
-tscp user@hostname:/remote/file.txt ./
-
-# With SCP options
-tscp -r local_dir/ hostname:/remote/path/  # Recursive copy
-tscp -P 2222 file.txt hostname:/path/      # Custom port
+tscp -r local_dir/ hostname:/remote/path/
+tscp -P 2222 file.txt hostname:/path/
 ```
 
-### File Synchronization with trsync
-
-The `trsync` command provides rsync functionality with Tailscale hostname resolution:
+### trsync
 
 ```bash
-# Sync directory to remote host
 trsync -av local_dir/ hostname:/remote/path/
-trsync -av local_dir/ user@hostname:/remote/path/
-
-# Sync from remote host
 trsync -av hostname:/remote/path/ local_dir/
-trsync -av user@hostname:/remote/path/ local_dir/
-
-# Common rsync options work as expected
-trsync -avz --delete source/ hostname:/dest/     # Compress, delete removed files
-trsync -av --exclude='*.log' dir/ hostname:/dir/ # Exclude patterns
-trsync -av --dry-run source/ hostname:/dest/     # Preview changes
-
-# Debug mode shows hostname resolution
-trsync -v source/ hostname:/dest/                # Shows resolved hostname/IP
+trsync -avz --delete source/ hostname:/dest/
+trsync -av --exclude='*.log' dir/ hostname:/dir/
+trsync -av --dry-run source/ hostname:/dest/
+trsync -v source/ hostname:/dest/           # shows the resolved host/IP
 ```
 
-### Parallel SSH with tmussh
+### tmussh
 
-When `mussh` is installed, `tmussh` provides parallel SSH execution across multiple Tailscale nodes:
+Needs `mussh`. Runs a command across several hosts in parallel:
 
 ```bash
-# Execute command on multiple hosts
 tmussh -h host1 host2 host3 -c "uptime"
-
-# Using wildcards (resolved to Tailscale hosts)
-tmussh -h "web-*" -c "systemctl status nginx"
-
-# With parallel execution limit
-tmussh -m 5 -h "prod-*" -c "df -h"
-
-# Different users per host
-tmussh -h admin@web1 root@web2 -c "whoami"
-
-# From host file
+tmussh -h "web-*" -c "systemctl status nginx"   # wildcards resolve to tailnet hosts
+tmussh -m 5 -h "prod-*" -c "df -h"              # limit concurrency
+tmussh -h admin@web1 root@web2 -c "whoami"      # per-host users
 tmussh -H hostlist.txt -c "hostname"
 ```
 
-### Tab Completion
-
-All commands support intelligent tab completion:
+### tssh_copy_id
 
 ```bash
-# Complete hostnames
-tssh host<TAB>            # Shows all matching Tailscale hosts
-ts host<TAB>              # Same with alias
-
-# Complete usernames
-tssh ro<TAB>              # Completes to "root@"
-tssh admin@<TAB>          # Shows all hosts for admin user
-
-# Partial matching
-tssh @prod<TAB>           # Shows all hosts containing "prod"
-```
-
-### 🔑 SSH Key Management
-
-Secure SSH key distribution with Tailscale hostname resolution:
-
-```bash
-# Copy SSH key to Tailscale node
-tssh_copy_id hostname                    # As root
-tssh_copy_id user@hostname               # As specific user
-
-# Via ts dispatcher
-ts ssh_copy_id hostname                  # Same functionality
-ts ssh_copy_id user@hostname
-
-# With ProxyJump (auto-resolves both hosts)
-tssh_copy_id -J jumphost user@destination
-
-# Standard ssh-copy-id options work
+tssh_copy_id hostname                        # as root
+tssh_copy_id user@hostname
+tssh_copy_id -J jumphost user@destination    # resolves both hosts
 tssh_copy_id -i ~/.ssh/custom_key.pub hostname
+ts ssh_copy_id hostname
 ```
 
-### 🗂️ Modern File Transfer (SFTP)
-
-Secure file transfer using SFTP protocol:
+### tsftp
 
 ```bash
-# Interactive SFTP session
-tsftp hostname                           # Connect as root
-tsftp user@hostname                      # Connect as specific user
-
-# Via ts dispatcher
-ts sftp hostname                         # Same functionality
-ts sftp user@hostname
-
-# SFTP with options
-tsftp -P 2222 hostname                   # Custom port
-tsftp -i ~/.ssh/custom_key hostname      # Custom identity file
-
-# Example SFTP session:
-# sftp> put localfile.txt /remote/path/
-# sftp> get /remote/file.txt ./
-# sftp> ls -la
-# sftp> quit
+tsftp hostname                   # connect as root
+tsftp user@hostname
+tsftp -P 2222 hostname
+tsftp -i ~/.ssh/custom_key hostname
+ts sftp hostname
 ```
 
-### 🌍 Exit Node Management
+### tsexit
 
-Interactive menu for managing Tailscale exit nodes with automatic Mullvad detection:
+Interactive menu for choosing an exit node. Mullvad nodes are detected and grouped by
+country; your own tailnet devices show up in a separate section, and the current exit
+node is marked. Works fine without a Mullvad subscription (you just see your own
+devices).
 
 ```bash
-# Interactive exit node selection
-tsexit                                   # Arrow-key navigation menu
-
-# Via ts dispatcher
-ts exit                                  # Same functionality
-
-# List available exit nodes
-tsexit --list                           # Non-interactive listing
-
-# Features:
-# - Automatic Mullvad node detection and country grouping
-# - Personal/Tailnet devices in separate section
-# - Current exit node indicator
-# - Works without Mullvad subscription (shows only personal devices)
+tsexit            # arrow-key menu
+tsexit --list     # non-interactive listing
+ts exit
 ```
 
-### 🛰️ Ping Tailscale Nodes
-
-The `tsping` command (and `ts ping`) pings a Tailscale node by name, using the same hostname resolution and interactive selection as `tssh`:
+### tsping
 
 ```bash
-# Ping a Tailscale node (resolves the hostname, then pings the IP)
 tsping myhost
-ts ping myhost                           # Via dispatcher
-
-# ping options are passed through to the system ping
-ts ping -c 4 myhost                      # Send four packets
-tsping -4 myhost                         # Force IPv4
-
-# Non-Tailscale names fall back to a normal ping
-ts ping example.com
+ts ping myhost
+ts ping -c 4 myhost      # ping flags pass through
+tsping -4 myhost
+ts ping example.com      # non-tailnet names fall back to a normal ping
 ```
 
-## 🔧 How It Works
-
-### 🎯 Intelligent Host Resolution
-When you type `ts hostname`, the system:
-1. **Queries Tailscale**: Gets current network status via `tailscale status --json`
-2. **Security validation**: Validates JSON structure and sanitizes inputs
-3. **Fuzzy matching**: Uses Levenshtein distance algorithm for partial matches
-4. **Smart DNS**: Uses MagicDNS names when available, falls back to IPs
-5. **SSH fallback**: Tries regular SSH if host isn't in Tailscale network
-
-### 🛡️ Security Features
-- **Input validation**: Prevents command injection through hostname validation
-- **JSON security**: Validates Tailscale JSON structure before processing
-- **Pattern sanitization**: Prevents regex injection in search patterns
-- **Safe argument handling**: Uses `--` parameter separation to prevent option injection
-- **Secure jq queries**: Uses `--arg` parameter binding instead of string interpolation
-
-### ⚡ Performance & Efficiency
-- **One-time checks**: Command availability checked once at load time
-- **Conditional loading**: Only loads functionality for installed tools
-- **Shared code**: Single hostname resolution function eliminates duplication
-- **Smart caching**: Reuses Tailscale status data across operations
-
-### 🎮 Tab Completion Intelligence
-- **Levenshtein sorting**: Results sorted by similarity to your input
-- **Version awareness**: Detects tool versions and offers appropriate options
-- **Context sensitivity**: Different completions for different command contexts
-- **Shell compatibility**: Works seamlessly in both Bash and Zsh
-
-## Uninstallation
+### Tab completion
 
 ```bash
-# Remove user installation
-./setup.sh --uninstall
-
-# Remove system-wide installation
-sudo ./setup.sh --uninstall
-
-# Or manually remove from your shell RC file
-# Remove the tailscale-cli-helpers source lines from ~/.bashrc or ~/.zshrc
+tssh host<TAB>       # matching hosts
+tssh ro<TAB>         # completes to root@
+tssh admin@<TAB>     # hosts for the admin user
+tssh @prod<TAB>      # hosts containing "prod"
 ```
 
-## 🔍 Troubleshooting
+## How it works
 
-### Functions not available after installation
+When you run `ts hostname`, the helpers query `tailscale status --json`, validate the
+JSON, and match your input against the node list with a Levenshtein-distance sort. They
+prefer MagicDNS names and fall back to the node's IP. If nothing matches, they hand the
+name to plain `ssh` so non-tailnet hosts still work.
+
+Hostnames are validated before use and jq queries bind values with `--arg` rather than
+string interpolation, so a hostile hostname can't inject a command or a regex. Argument
+lists use `--` separation to keep flags from being reinterpreted as options.
+
+Tool availability is checked once at load time, resolution logic is shared across the
+commands rather than duplicated, and status output is reused within an operation.
+
+## Uninstall
+
 ```bash
-# Reload shell configuration
-source ~/.bashrc        # For Bash
-source ~/.zshrc         # For Zsh
-
-# OR start a new shell session
-exec $SHELL
-
-# Verify installation
-type tssh               # Should show function definition
-type ts                 # Should show function definition
+./setup.sh --uninstall        # user install
+sudo ./setup.sh --uninstall   # system-wide
 ```
 
-### Tab completion not working
+You can also delete the source lines from `~/.bashrc` or `~/.zshrc` by hand.
+
+## Troubleshooting
+
+Functions not found after install: reload your shell (`source ~/.bashrc`,
+`source ~/.zshrc`, or `exec $SHELL`) and check with `type tssh` / `type ts`.
+
+Completion not working:
+
 ```bash
-# Install completion systems
-sudo dnf install bash-completion        # Fedora/RHEL
-sudo apt install bash-completion        # Ubuntu/Debian
-brew install bash-completion            # macOS
+sudo dnf install bash-completion    # Fedora/RHEL
+sudo apt install bash-completion    # Ubuntu/Debian
+brew install bash-completion        # macOS
 
-# For Zsh users, ensure completion system is enabled
-echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
-source ~/.zshrc
-
-# Test completion
-ts <TAB><TAB>           # Should show available commands/hosts
+# Zsh
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc && source ~/.zshrc
 ```
 
-### Commands missing (tscp, tsftp, trsync, tmussh)
+A command is missing (`tscp`, `tsftp`, `trsync`, `tmussh`): the underlying tool isn't
+installed. Install it, then reload your shell.
+
 ```bash
-# These commands are conditionally loaded - install missing tools:
-sudo dnf install openssh-clients rsync          # Fedora/RHEL (scp, sftp, rsync)
-sudo apt install openssh-client rsync           # Ubuntu/Debian (scp, sftp, rsync)
-brew install rsync                              # macOS (rsync)
-
-# For tmussh (parallel SSH)
-sudo dnf install mussh                          # If available in repos
-# OR build from source: https://github.com/DigitalCyberSoft/mussh
-
-# Reload to detect new tools
-source ~/.bashrc
+sudo dnf install openssh-clients rsync    # Fedora/RHEL
+sudo apt install openssh-client rsync     # Ubuntu/Debian
+brew install rsync                        # macOS
+# tmussh needs mussh: https://github.com/DigitalCyberSoft/mussh
 ```
 
-### Tailscale connection issues
+Tailscale problems:
+
 ```bash
-# Verify Tailscale is running
 tailscale status
-
-# Check network connectivity
-ping 100.100.100.100    # Tailscale DNS server
-
-# Debug hostname resolution
-tssh -v hostname        # Shows detailed resolution process
+ping 100.100.100.100     # Tailscale DNS
+tssh -v hostname         # show resolution steps
 ```
 
-### Version/compatibility issues
+Version checks:
+
 ```bash
-# Check versions
-bash --version          # Needs 4.0+
-zsh --version           # Any recent version
-jq --version            # Any version
-tailscale version       # Any version
-
-# Run comprehensive tests
-./tests/test-both-shells.sh             # Test both shells
-./tests/test-comprehensive-commands.sh   # Test all commands
-./tests/test-security-hardening.sh      # Test security features
-```
-
-### Installation issues
-```bash
-# Remove and reinstall
-./setup.sh --uninstall     # Remove current installation
-./setup.sh                 # Clean reinstall
-
-# Check installation paths
-ls -la ~/.config/tailscale-cli-helpers/          # User installation
-ls -la /usr/share/tailscale-cli-helpers/         # System installation
+bash --version           # need 4.0+
+jq --version
+tailscale version
+./tests/test-both-shells.sh
 ```
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Pull requests and issues are welcome.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT. See [LICENSE](LICENSE).
