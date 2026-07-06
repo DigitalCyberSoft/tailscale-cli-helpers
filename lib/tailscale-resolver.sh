@@ -117,15 +117,17 @@ resolve_tailscale_host() {
     [[ "$verbose" == "true" ]] && echo "[DEBUG] MagicDNS enabled: $magicdns_enabled" >&2
     [[ "$verbose" == "true" ]] && echo "[DEBUG] Searching for hostname: $hostname_only" >&2
     
-    # Try exact match first
+    # Try exact match first (case-insensitive, device hostname or machine name)
     local result=$(echo "$tailscale_json" | jq -r --arg hostname "$hostname_only" --arg magicdns "$magicdns_enabled" '
+        def names_lc: [(.HostName // ""), ((.DNSName // "") | split(".")[0])] | map(ascii_downcase) | map(select(. != ""));
+        ($hostname | ascii_downcase) as $h |
         # Check Self host first
-        (if .Self.HostName == $hostname then 
-            "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online,self"
+        (.Self | if (names_lc | index($h)) then
+            "\(.TailscaleIPs[0]),\(.DNSName // .HostName),\(.OS),online,self"
         else empty end),
         # Check Peer hosts
-        (.Peer | to_entries[] | .value | 
-            if .HostName == $hostname then
+        (.Peer | to_entries[] | .value |
+            if (names_lc | index($h)) then
                 "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end),\(.PublicKey)"
             else empty end
         )
@@ -135,18 +137,20 @@ resolve_tailscale_host() {
         # Try fuzzy matching
         [[ "$verbose" == "true" ]] && echo "[DEBUG] No exact match, trying fuzzy search..." >&2
         
-        # Get all hosts with Levenshtein distances
-        local all_hosts=$(echo "$tailscale_json" | jq -r --arg magicdns "$magicdns_enabled" '
-            (.Self | "\(.HostName)"),
-            (.Peer | to_entries[] | .value.HostName)
-        ' 2>/dev/null)
-        
+        # Get all candidate names (device hostnames and machine names, lowercased)
+        local all_hosts=$(echo "$tailscale_json" | jq -r '
+            (.Self, (.Peer | to_entries[] | .value)) |
+            (.HostName // ""), ((.DNSName // "") | split(".")[0]) |
+            select(. != "") | ascii_downcase
+        ' 2>/dev/null | sort -u)
+
         local best_match=""
         local best_distance=999
-        
+        local needle_lc=$(printf '%s' "$hostname_only" | tr '[:upper:]' '[:lower:]')
+
         while IFS= read -r host; do
             [[ -z "$host" ]] && continue
-            local distance=$(_levenshtein "$hostname_only" "$host")
+            local distance=$(_levenshtein "$needle_lc" "$host")
             if [[ $distance -lt $best_distance ]]; then
                 best_distance=$distance
                 best_match=$host
@@ -158,11 +162,13 @@ resolve_tailscale_host() {
             
             # Get the full data for the best match
             result=$(echo "$tailscale_json" | jq -r --arg hostname "$best_match" --arg magicdns "$magicdns_enabled" '
-                (if .Self.HostName == $hostname then 
-                    "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online,self"
+                def names_lc: [(.HostName // ""), ((.DNSName // "") | split(".")[0])] | map(ascii_downcase) | map(select(. != ""));
+                ($hostname | ascii_downcase) as $h |
+                (.Self | if (names_lc | index($h)) then
+                    "\(.TailscaleIPs[0]),\(.DNSName // .HostName),\(.OS),online,self"
                 else empty end),
-                (.Peer | to_entries[] | .value | 
-                    if .HostName == $hostname then
+                (.Peer | to_entries[] | .value |
+                    if (names_lc | index($h)) then
                         "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end),\(.PublicKey)"
                     else empty end
                 )
@@ -245,16 +251,19 @@ find_all_matching_hosts() {
         magicdns_enabled="true"
     fi
     
-    # Find all matching hosts (case-insensitive), excluding Mullvad exit nodes
+    # Find all matching hosts (case-insensitive, device hostname or machine name),
+    # excluding Mullvad exit nodes
     local matches=$(echo "$tailscale_json" | jq -r --arg pattern "$hostname_only" --arg magicdns "$magicdns_enabled" '
+        def names_lc: [(.HostName // ""), ((.DNSName // "") | split(".")[0])] | map(ascii_downcase) | map(select(. != ""));
+        ($pattern | ascii_downcase) as $p |
         # Check Self host
-        (if (.Self.HostName | ascii_downcase | contains($pattern | ascii_downcase)) then 
-            "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
+        (.Self | if (names_lc | any(contains($p))) then
+            "\(.TailscaleIPs[0]),\(.DNSName // .HostName),\(.OS),online"
         else empty end),
         # Check Peer hosts (excluding Mullvad exit nodes)
-        (.Peer | to_entries[] | .value | 
+        (.Peer | to_entries[] | .value |
             select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
-            if (.HostName | ascii_downcase | contains($pattern | ascii_downcase)) then
+            if (names_lc | any(contains($p))) then
                 "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
             else empty end
         )
@@ -263,14 +272,16 @@ find_all_matching_hosts() {
     # If no matches with contains, try exact match
     if [[ -z "$matches" ]]; then
         matches=$(echo "$tailscale_json" | jq -r --arg hostname "$hostname_only" --arg magicdns "$magicdns_enabled" '
+            def names_lc: [(.HostName // ""), ((.DNSName // "") | split(".")[0])] | map(ascii_downcase) | map(select(. != ""));
+            ($hostname | ascii_downcase) as $h |
             # Check Self host
-            (if .Self.HostName == $hostname then 
-                "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
+            (.Self | if (names_lc | index($h)) then
+                "\(.TailscaleIPs[0]),\(.DNSName // .HostName),\(.OS),online"
             else empty end),
             # Check Peer hosts (excluding Mullvad exit nodes)
-            (.Peer | to_entries[] | .value | 
+            (.Peer | to_entries[] | .value |
                 select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
-                if .HostName == $hostname then
+                if (names_lc | index($h)) then
                     "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
                 else empty end
             )
@@ -338,27 +349,28 @@ find_multiple_hosts_matching() {
     
     # Use jq to find matching hosts - allow more permissive pattern matching for multi-host commands
     echo "$tailscale_json" | jq -r --arg pattern "$regex_pattern" --arg magicdns "$magicdns_enabled" '
+        def names: [(.HostName // ""), ((.DNSName // "") | split(".")[0])] | map(select(. != ""));
         # Extract Self host if it matches
-        (if (.Self.HostName | test($pattern)) then 
-            "\(.Self.TailscaleIPs[0]),\(.Self.DNSName // .Self.HostName),\(.Self.OS),online"
+        (.Self | if (names | any(test($pattern; "i"))) then
+            "\(.TailscaleIPs[0]),\(.DNSName // .HostName),\(.OS),online"
         else empty end),
         # Extract matching Peer hosts (excluding Mullvad exit nodes)
-        (.Peer | to_entries[] | .value | 
+        (.Peer | to_entries[] | .value |
             select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
-            if (.HostName | test($pattern)) then
+            if (names | any(test($pattern; "i"))) then
                 "\(.TailscaleIPs[0]),\(if $magicdns == "true" then (.DNSName | rtrimstr(".")) else (.DNSName | split(".")[0]) end),\(.OS),\(if .Online or .Active then "online" else "offline" end)"
             else empty end
         )
     ' 2>/dev/null || {
         # Fallback: try basic pattern matching without regex (excluding Mullvad exit nodes)
         echo "$tailscale_json" | jq -r --arg pattern "$search_pattern" '
-            # Simple fallback - check if hostname contains the pattern (without wildcards)
-            (.Self.HostName), 
-            (.Peer | to_entries[] | .value | 
-                select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
-                .HostName
-            ) | 
-            select(contains($pattern))' 2>/dev/null | head -5
+            # Simple fallback - check if either name contains the pattern (without wildcards)
+            (.Self, (.Peer | to_entries[] | .value |
+                select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not))
+            )) |
+            (.HostName // ""), ((.DNSName // "") | split(".")[0]) |
+            select(. != "") |
+            select(ascii_downcase | contains($pattern | ascii_downcase))' 2>/dev/null | sort -u | head -5
     }
 }
 
@@ -492,13 +504,15 @@ get_all_tailscale_hosts() {
     
     _validate_tailscale_json "$tailscale_json" || return 1
     
-    # Extract all hostnames, excluding Mullvad exit nodes
+    # Extract all node names, excluding Mullvad exit nodes. Prefer the machine
+    # name (first DNSName label) - it is what MagicDNS and tailscale status show
+    # and stays valid after a machine is renamed; fall back to the device hostname.
     local hosts=$(echo "$tailscale_json" | jq -r '
-        (.Self | "\(.HostName)"),
-        (.Peer | to_entries[] | .value | 
-            select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not)) |
-            .HostName
-        )
+        (.Self, (.Peer | to_entries[] | .value |
+            select(.Tags == null or (.Tags | contains(["tag:mullvad-exit-node"]) | not))
+        )) |
+        (((.DNSName // "") | split(".")[0]) as $mn | if $mn != "" then $mn else (.HostName // "") end) |
+        select(. != "")
     ' 2>/dev/null | sort -u)
     
     # Filter by prefix if provided
