@@ -15,8 +15,15 @@ fi
 
 # Source the resolver library for host completion
 _completion_source_resolver() {
+    # BASH_SOURCE is empty in zsh; fall back to zsh's prompt expansion for
+    # the path of the file currently being sourced
+    local self_src="${BASH_SOURCE[0]:-}"
+    if [[ -z "$self_src" ]] && [[ -n "${ZSH_VERSION:-}" ]]; then
+        self_src="${(%):-%x}"
+    fi
     local dirs=(
-        "$(dirname "${BASH_SOURCE[0]}")/../lib"
+        "$(dirname "$self_src")/../lib"
+        "$HOME/.local/share/tailscale-cli-helpers/lib"
         "/usr/share/tailscale-cli-helpers/lib"
         "/usr/local/share/tailscale-cli-helpers/lib"
     )
@@ -448,16 +455,24 @@ _tsexit_complete() {
 
 # Register completions
 if [[ "$_IS_ZSH" == "true" ]]; then
-    # Zsh completion setup
-    compdef _ts_complete ts
-    compdef _tssh_complete tssh
-    compdef _tsping_complete tsping
-    compdef _tscp_complete tscp
-    compdef _tsftp_complete tsftp
-    compdef _trsync_complete trsync
-    compdef _tssh_copy_id_complete tssh_copy_id
-    compdef _tmussh_complete tmussh
-    compdef _tsexit_complete tsexit
+    # compdef is defined by zsh's completion system; initialize it if the
+    # user's shell has not run compinit yet (-i skips insecure-dir prompts)
+    if ! command -v compdef >/dev/null 2>&1; then
+        autoload -Uz compinit && compinit -i
+    fi
+    if command -v compdef >/dev/null 2>&1; then
+        compdef _ts_complete ts
+        compdef _tssh_complete tssh
+        compdef _tsping_complete tsping
+        compdef _tscp_complete tscp
+        compdef _tsftp_complete tsftp
+        compdef _trsync_complete trsync
+        compdef _tssh_copy_id_complete tssh_copy_id
+        compdef _tmussh_complete tmussh
+        compdef _tsexit_complete tsexit
+    else
+        echo "tailscale-completion: compinit unavailable; zsh completions not registered" >&2
+    fi
 else
     # Bash completion setup
     complete -F _ts_complete ts
