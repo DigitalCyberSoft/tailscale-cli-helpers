@@ -21,8 +21,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Source common utilities
 if [[ -f "$SCRIPT_DIR/../lib/common.sh" ]]; then
     source "$SCRIPT_DIR/../lib/common.sh"
+elif [[ -f "$HOME/.local/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "$HOME/.local/share/tailscale-cli-helpers/lib/common.sh"
 elif [[ -f "/usr/share/tailscale-cli-helpers/lib/common.sh" ]]; then
     source "/usr/share/tailscale-cli-helpers/lib/common.sh"
+elif [[ -f "/usr/local/share/tailscale-cli-helpers/lib/common.sh" ]]; then
+    source "/usr/local/share/tailscale-cli-helpers/lib/common.sh"
 fi
 
 # Show help
