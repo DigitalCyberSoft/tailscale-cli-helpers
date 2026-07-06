@@ -271,7 +271,10 @@ build_menu() {
                 expand_marker="▼"
             fi
 
-            menu_items+=("  $expand_marker $flag $country ($node_count nodes)")
+            local node_word="nodes"
+            [[ "$node_count" -eq 1 ]] && node_word="node"
+
+            menu_items+=("  $expand_marker $flag $country ($node_count $node_word)")
             menu_values+=("COUNTRY:$country")
             menu_types+=("COUNTRY")
             menu_display_names+=("")

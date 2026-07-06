@@ -15,9 +15,6 @@ fi
 set -o pipefail
 IFS=$' \t\n'
 
-# Version
-TSSH_COPY_ID_VERSION="0.2.1"
-
 # Check dependencies
 if ! command -v ssh-copy-id >/dev/null 2>&1; then
     echo "Error: ssh-copy-id is required but not installed" >&2

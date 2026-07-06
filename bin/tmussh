@@ -15,9 +15,6 @@ fi
 set -o pipefail
 IFS=$' \t\n'
 
-# Version
-TMUSSH_VERSION="0.2.1"
-
 # Check dependencies
 if ! command -v mussh >/dev/null 2>&1; then
     echo "Error: mussh is required but not installed" >&2

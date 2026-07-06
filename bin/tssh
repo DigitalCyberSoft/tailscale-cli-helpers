@@ -16,9 +16,6 @@ fi
 set -o pipefail
 IFS=$' \t\n'
 
-# Version
-TSSH_VERSION="0.2.1"
-
 # Check dependencies
 if ! command -v jq >/dev/null 2>&1; then
     echo "Error: jq is required but not installed" >&2

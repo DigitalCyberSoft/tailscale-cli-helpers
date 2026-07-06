@@ -15,9 +15,6 @@ fi
 set -o pipefail
 IFS=$' \t\n'
 
-# Version
-TS_VERSION="0.2.1"
-
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -122,8 +119,8 @@ main() {
                 exec tmussh "$@"
             else
                 echo "Error: tmussh not available" >&2
-                echo "Install with: sudo dnf install tailscale-cli-helpers-tmussh" >&2
-                echo "Or: sudo apt install tailscale-cli-helpers-tmussh" >&2
+                echo "Install with: sudo dnf install tailscale-cli-helpers-mussh" >&2
+                echo "Or: sudo apt install tailscale-cli-helpers-mussh" >&2
                 exit 1
             fi
             ;;
