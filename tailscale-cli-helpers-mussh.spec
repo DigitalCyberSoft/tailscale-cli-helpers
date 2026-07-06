@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers-mussh
-Version:        0.3.2
+Version:        0.3.3
 Release:        1
 Summary:        Parallel SSH execution on Tailscale nodes using mussh
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.2.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.3.tar.gz
 
 Requires:       tailscale-cli-helpers >= 0.2.0
 Requires:       mussh
@@ -31,7 +31,7 @@ Features:
 - Integration with mussh for robust parallel execution
 
 %prep
-%setup -q -n tailscale-cli-helpers-0.3.2
+%setup -q -n tailscale-cli-helpers-0.3.3
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -66,6 +66,10 @@ See: man tmussh for complete documentation" > $RPM_BUILD_ROOT%{_docdir}/tailscal
 %{_mandir}/man1/tmussh.1.gz
 
 %changelog
+* Mon Jul 06 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.3-1
+- Find shared libraries in user-install locations (~/.local)
+- Wildcard expansion now matches machine names as well as device hostnames
+
 * Thu Dec 11 2025 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.2-1
 - Fix wildcard expansion to use IPs when MagicDNS unavailable
 

@@ -1,3 +1,10 @@
+tailscale-cli-helpers-mussh (0.3.3-1) unstable; urgency=medium
+
+  * Find shared libraries in user-install locations (~/.local)
+  * Wildcard expansion now matches machine names as well as device hostnames
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Mon, 06 Jul 2026 12:00:00 +0800
+
 tailscale-cli-helpers-mussh (0.3.2-1) unstable; urgency=medium
 
   * Fix wildcard expansion to use IPs when MagicDNS unavailable

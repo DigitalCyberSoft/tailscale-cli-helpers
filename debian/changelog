@@ -1,3 +1,13 @@
+tailscale-cli-helpers (0.3.7-1) unstable; urgency=medium
+
+  * Match machine names (MagicDNS names) in addition to device hostnames when resolving hosts
+  * Fix user installs: commands now find shared libraries under ~/.local (fixes macOS setup.sh installs)
+  * Fix zsh completions: initialize the completion system automatically when compinit has not run
+  * Tab completion now suggests machine names instead of raw device hostnames
+  * Fix Homebrew formula install logic for the current file layout
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Mon, 06 Jul 2026 12:00:00 +0800
+
 tailscale-cli-helpers (0.3.6-1) unstable; urgency=medium
 
   * Add 'ts ping' subcommand and standalone 'tsping' for ping with hostname resolution

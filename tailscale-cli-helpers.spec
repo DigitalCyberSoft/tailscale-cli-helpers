@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.3.6
+Version:        0.3.7
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.6.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.7.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -23,7 +23,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.3.6
+%setup -q -n %{name}-0.3.7
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -109,6 +109,13 @@ fi
 %{_bindir}/%{name}-setup
 
 %changelog
+* Mon Jul 06 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.7-1
+- Match machine names (MagicDNS names) in addition to device hostnames when resolving hosts
+- Fix user installs: commands now find shared libraries under ~/.local (fixes macOS setup.sh installs)
+- Fix zsh completions: initialize the completion system automatically when compinit has not run
+- Tab completion now suggests machine names instead of raw device hostnames
+- Fix Homebrew formula install logic for the current file layout
+
 * Sat Jun 20 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.6-1
 - Add 'ts ping' subcommand and standalone 'tsping' for ping with hostname resolution
 
