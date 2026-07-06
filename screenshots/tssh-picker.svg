@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="527" height="195" viewBox="0 0 527 195" font-family="ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="13">
+<rect width="527" height="195" rx="9" fill="#0d1117" stroke="#30363d"/>
+<path d="M0 9a9 9 0 019-9h509a9 9 0 019 9v25H0z" fill="#161b22"/>
+<circle cx="22" cy="17" r="6" fill="#ff5f57"/>
+<circle cx="42" cy="17" r="6" fill="#febc2e"/>
+<circle cx="62" cy="17" r="6" fill="#28c840"/>
+<text x="263.5" y="21.0" text-anchor="middle" fill="#8b949e" font-size="12">tssh</text>
+<text y="63.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="7.8" lengthAdjust="spacingAndGlyphs" fill="#56d364" font-weight="600">$</tspan><tspan x="21.8" textLength="70.2" lengthAdjust="spacingAndGlyphs"> tssh web</tspan></text>
+<text y="82.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="280.8" lengthAdjust="spacingAndGlyphs">Multiple hosts found matching &#x27;web&#x27;:</tspan></text>
+<text y="101.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="23.4" lengthAdjust="spacingAndGlyphs" fill="#3fb950">[1]</tspan><tspan x="37.4" textLength="413.4" lengthAdjust="spacingAndGlyphs"> web1.tail1234.ts.net (100.101.1.21) - linux - online</tspan></text>
+<text y="120.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="23.4" lengthAdjust="spacingAndGlyphs" fill="#3fb950">[2]</tspan><tspan x="37.4" textLength="413.4" lengthAdjust="spacingAndGlyphs"> web2.tail1234.ts.net (100.101.1.22) - linux - online</tspan></text>
+<text y="139.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="23.4" lengthAdjust="spacingAndGlyphs" fill="#3fb950">[3]</tspan><tspan x="37.4" textLength="475.8" lengthAdjust="spacingAndGlyphs"> web-staging.tail1234.ts.net (100.101.1.23) - linux - offline</tspan></text>
+<text y="158.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="226.2" lengthAdjust="spacingAndGlyphs">Select host number ([1]-3): 1</tspan></text>
+<text y="177.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="31.2" lengthAdjust="spacingAndGlyphs" fill="#3fb950">[TS]</tspan><tspan x="45.2" textLength="117.0" lengthAdjust="spacingAndGlyphs"> Connecting to </tspan><tspan x="162.2" textLength="132.6" lengthAdjust="spacingAndGlyphs" fill="#3fb950">root@100.101.1.21</tspan><tspan x="294.8" textLength="202.8" lengthAdjust="spacingAndGlyphs"> (web1.tail1234.ts.net)...</tspan></text>
+</svg>

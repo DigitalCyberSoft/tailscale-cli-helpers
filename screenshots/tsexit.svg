@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="527" height="404" viewBox="0 0 527 404" font-family="ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace" font-size="13">
+<rect width="527" height="404" rx="9" fill="#0d1117" stroke="#30363d"/>
+<path d="M0 9a9 9 0 019-9h509a9 9 0 019 9v25H0z" fill="#161b22"/>
+<circle cx="22" cy="17" r="6" fill="#ff5f57"/>
+<circle cx="42" cy="17" r="6" fill="#febc2e"/>
+<circle cx="62" cy="17" r="6" fill="#28c840"/>
+<text x="263.5" y="21.0" text-anchor="middle" fill="#8b949e" font-size="12">tsexit</text>
+<rect x="14.0" y="124.0" width="218.4" height="19" fill="#1f4b99"/>
+<text y="63.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="257.4" lengthAdjust="spacingAndGlyphs" fill="#56d4dd" font-weight="600">║  Tailscale Exit Node Manager  ║</tspan></text>
+<text y="82.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="257.4" lengthAdjust="spacingAndGlyphs" fill="#56d4dd" font-weight="600">╚═══════════════════════════════╝</tspan></text>
+<text y="101.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="62.4" lengthAdjust="spacingAndGlyphs" font-weight="600">Current:</tspan><tspan x="76.4" textLength="7.8" lengthAdjust="spacingAndGlyphs"> </tspan><tspan x="84.2" textLength="31.2" lengthAdjust="spacingAndGlyphs" fill="#3fb950">None</tspan></text>
+<text y="139.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="218.4" lengthAdjust="spacingAndGlyphs" fill="#b1bac4">▶ ● None (Disable exit node)</tspan></text>
+<text y="177.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="15.6" lengthAdjust="spacingAndGlyphs">  </tspan><tspan x="29.6" textLength="187.2" lengthAdjust="spacingAndGlyphs" fill="#39c5cf">Personal/Tailnet Devices</tspan></text>
+<text y="196.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="249.6" lengthAdjust="spacingAndGlyphs">    ◯ homeserver.tail1234.ts.net</tspan></text>
+<text y="234.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="15.6" lengthAdjust="spacingAndGlyphs">  </tspan><tspan x="29.6" textLength="140.4" lengthAdjust="spacingAndGlyphs" fill="#39c5cf">Mullvad Exit Nodes</tspan></text>
+<text y="253.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="195.0" lengthAdjust="spacingAndGlyphs">    ▶ 🌍 Germany (2 nodes)</tspan></text>
+<text y="272.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="179.4" lengthAdjust="spacingAndGlyphs">    ▶ 🌍 Sweden (1 node)</tspan></text>
+<text y="291.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="156.0" lengthAdjust="spacingAndGlyphs">    ▶ 🌍 USA (1 node)</tspan></text>
+<text y="348.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="499.2" lengthAdjust="spacingAndGlyphs">────────────────────────────────────────────────────────────────</tspan></text>
+<text y="367.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="7.8" lengthAdjust="spacingAndGlyphs">[</tspan><tspan x="21.8" textLength="15.6" lengthAdjust="spacingAndGlyphs" font-weight="600">↑↓</tspan><tspan x="37.4" textLength="101.4" lengthAdjust="spacingAndGlyphs">] Navigate  [</tspan><tspan x="138.8" textLength="15.6" lengthAdjust="spacingAndGlyphs" font-weight="600">→←</tspan><tspan x="154.4" textLength="156.0" lengthAdjust="spacingAndGlyphs">] Expand/Collapse  [</tspan><tspan x="310.4" textLength="39.0" lengthAdjust="spacingAndGlyphs" font-weight="600">Enter</tspan><tspan x="349.4" textLength="85.8" lengthAdjust="spacingAndGlyphs">] Select  [</tspan><tspan x="435.2" textLength="23.4" lengthAdjust="spacingAndGlyphs" font-weight="600">a-z</tspan><tspan x="458.6" textLength="46.8" lengthAdjust="spacingAndGlyphs">] Jump</tspan></text>
+<text y="386.0" xml:space="preserve" fill="#e6edf3"><tspan x="14.0" textLength="7.8" lengthAdjust="spacingAndGlyphs">[</tspan><tspan x="21.8" textLength="39.0" lengthAdjust="spacingAndGlyphs" font-weight="600">q/ESC</tspan><tspan x="60.8" textLength="70.2" lengthAdjust="spacingAndGlyphs">] Quit  [</tspan><tspan x="131.0" textLength="7.8" lengthAdjust="spacingAndGlyphs" font-weight="600">r</tspan><tspan x="138.8" textLength="70.2" lengthAdjust="spacingAndGlyphs">] Refresh</tspan></text>
+</svg>
