@@ -8,7 +8,7 @@ Homepage: https://github.com/digitalcybersoft/tailscale-cli-helpers
 
 Package: tailscale-cli-helpers-mussh
 Architecture: all
-Depends: ${misc:Depends}, tailscale-cli-helpers (>= 0.2.1), mussh
+Depends: ${misc:Depends}, tailscale-cli-helpers (>= 0.4.0), mussh
 Replaces: tailscale-cli-helpers-tmussh (<< 0.2.3)
 Breaks: tailscale-cli-helpers-tmussh (<< 0.2.3)
 Provides: tailscale-cli-helpers-tmussh

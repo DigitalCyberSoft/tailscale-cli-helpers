@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.3.7
+Version:        0.4.0
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.7.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.4.0.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -23,7 +23,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.3.7
+%setup -q -n %{name}-0.4.0
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -109,6 +109,14 @@ fi
 %{_bindir}/%{name}-setup
 
 %changelog
+* Mon Oct 05 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.4.0-1
+- Resolve jump hosts in all commands: -J and -o ProxyJump for tssh, tscp, tsftp and tssh_copy_id, and ssh -J inside trsync -e/--rsh
+- tssh: a target behind a jump host no longer has to be a Tailscale node or in known_hosts, so hosts on the jump host's LAN are reachable (ts -J node 192.168.1.10)
+- Jump hosts keep user@ and :port, chains and ssh:// URIs work, and addresses or non-Tailscale names pass through unchanged
+- Fix tsftp -J, which used the jump host as the target
+- Fix tssh_copy_id -J, which ssh-copy-id rejected; jump hosts are now passed to ssh as ProxyJump
+- Behind a jump host, tssh_copy_id only resolves exact Tailscale names, so LAN hosts aren't swapped for similarly named nodes
+
 * Mon Jul 06 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.7-1
 - Match machine names (MagicDNS names) in addition to device hostnames when resolving hosts
 - Fix user installs: commands now find shared libraries under ~/.local (fixes macOS setup.sh installs)

@@ -1,3 +1,11 @@
+tailscale-cli-helpers-mussh (0.4.0-1) unstable; urgency=medium
+
+  * Resolve jump hosts (-J, -o ProxyJump) and proxy hosts (-p) to Tailscale addresses
+  * Behind a jump or proxy host, only exact Tailscale names given with -h are resolved, so LAN hosts aren't swapped for similarly named nodes
+  * Requires tailscale-cli-helpers >= 0.4.0 for the shared jump host resolver
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Mon, 05 Oct 2026 12:00:00 +0800
+
 tailscale-cli-helpers-mussh (0.3.3-1) unstable; urgency=medium
 
   * Find shared libraries in user-install locations (~/.local)

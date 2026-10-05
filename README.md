@@ -101,8 +101,8 @@ sudo ./setup.sh --system   # system-wide
 Or from a release tarball:
 
 ```bash
-wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.3.6.tar.gz
-tar -xzf v0.3.6.tar.gz && cd tailscale-cli-helpers-0.3.6
+wget https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.4.0.tar.gz
+tar -xzf v0.4.0.tar.gz && cd tailscale-cli-helpers-0.4.0
 ./setup.sh
 ```
 

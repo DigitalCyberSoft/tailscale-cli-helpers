@@ -1,3 +1,14 @@
+tailscale-cli-helpers (0.4.0-1) unstable; urgency=medium
+
+  * Resolve jump hosts in all commands: -J and -o ProxyJump for tssh, tscp, tsftp and tssh_copy_id, and ssh -J inside trsync -e/--rsh
+  * tssh: a target behind a jump host no longer has to be a Tailscale node or in known_hosts, so hosts on the jump host's LAN are reachable (ts -J node 192.168.1.10)
+  * Jump hosts keep user@ and :port, chains and ssh:// URIs work, and addresses or non-Tailscale names pass through unchanged
+  * Fix tsftp -J, which used the jump host as the target
+  * Fix tssh_copy_id -J, which ssh-copy-id rejected; jump hosts are now passed to ssh as ProxyJump
+  * Behind a jump host, tssh_copy_id only resolves exact Tailscale names, so LAN hosts aren't swapped for similarly named nodes
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Mon, 05 Oct 2026 12:00:00 +0800
+
 tailscale-cli-helpers (0.3.7-1) unstable; urgency=medium
 
   * Match machine names (MagicDNS names) in addition to device hostnames when resolving hosts

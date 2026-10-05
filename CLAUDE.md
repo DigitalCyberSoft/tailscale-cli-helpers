@@ -16,8 +16,9 @@ To release a new version:
    - `tailscale-cli-helpers-mussh.spec` (Version field)
    - `debian-mussh/changelog`
    - The mussh package has independent versioning and should only be updated when tmussh is modified
-   - RPM spec uses `Requires: tailscale-cli-helpers >= 0.2.0` (minimum version)
-   - Debian package uses `Depends: tailscale-cli-helpers (>= 0.2.1)` (minimum version)
+   - RPM spec uses `Requires: tailscale-cli-helpers >= 0.4.0` (minimum version)
+   - Debian package uses `Depends: tailscale-cli-helpers (>= 0.4.0)` (minimum version)
+   - Raise both minimums when tmussh starts using library functions added in a newer release
 
 3. Update Homebrew formula SHA256 hash (if needed)
 4. Commit changes and create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`

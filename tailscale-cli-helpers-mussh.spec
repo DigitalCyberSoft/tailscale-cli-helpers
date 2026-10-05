@@ -1,13 +1,13 @@
 Name:           tailscale-cli-helpers-mussh
-Version:        0.3.3
+Version:        0.4.0
 Release:        1
 Summary:        Parallel SSH execution on Tailscale nodes using mussh
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.3.3.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.4.0.tar.gz
 
-Requires:       tailscale-cli-helpers >= 0.2.0
+Requires:       tailscale-cli-helpers >= 0.4.0
 Requires:       mussh
 BuildArch:      noarch
 
@@ -31,7 +31,7 @@ Features:
 - Integration with mussh for robust parallel execution
 
 %prep
-%setup -q -n tailscale-cli-helpers-0.3.3
+%setup -q -n tailscale-cli-helpers-0.4.0
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -66,6 +66,11 @@ See: man tmussh for complete documentation" > $RPM_BUILD_ROOT%{_docdir}/tailscal
 %{_mandir}/man1/tmussh.1.gz
 
 %changelog
+* Mon Oct 05 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.4.0-1
+- Resolve jump hosts (-J, -o ProxyJump) and proxy hosts (-p) to Tailscale addresses
+- Behind a jump or proxy host, only exact Tailscale names given with -h are resolved, so LAN hosts aren't swapped for similarly named nodes
+- Requires tailscale-cli-helpers >= 0.4.0 for the shared jump host resolver
+
 * Mon Jul 06 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.3.3-1
 - Find shared libraries in user-install locations (~/.local)
 - Wildcard expansion now matches machine names as well as device hostnames
