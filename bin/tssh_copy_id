@@ -81,10 +81,16 @@ main() {
                 ;;
         esac
     done
-    
+
+    # Resolve jump hosts (-J, -o ProxyJump); like targets, they default to root
+    local jumping=false
+    if resolve_jump_args root "$@"; then
+        jumping=true
+    fi
+    set -- "${JUMP_ARGS[@]}"
+
     local args=()
     local target_host=""
-    local use_proxy_jump=false
     local jumphost=""
     local i=1
     
@@ -95,7 +101,6 @@ main() {
         case "$arg" in
             -J)
                 # ProxyJump option
-                use_proxy_jump=true
                 ((i++))
                 if [[ $i -le $# ]]; then
                     jumphost="${!i}"
@@ -138,24 +143,20 @@ main() {
         exit 1
     fi
     
-    # Resolve target host
+    # Resolve target host. Behind a jump host only exact Tailscale names are
+    # resolved, so a LAN name isn't swapped for a similarly named node.
+    local fuzzy=true
+    [[ "$jumping" == "true" ]] && fuzzy=false
     local resolved_target
-    resolved_target=$(resolve_tailscale_host "$target_host")
+    resolved_target=$(resolve_tailscale_host "$target_host" false "$fuzzy")
     if [[ $? -ne 0 ]]; then
         # Fall back to original hostname
         resolved_target="$target_host"
     fi
-    
-    # Handle ProxyJump if specified
-    if [[ "$use_proxy_jump" == "true" ]] && [[ -n "$jumphost" ]]; then
-        # Try to resolve jumphost
-        local resolved_jumphost
-        resolved_jumphost=$(resolve_tailscale_host "$jumphost")
-        if [[ $? -eq 0 ]]; then
-            args+=("-J" "$resolved_jumphost")
-        else
-            args+=("-J" "$jumphost")
-        fi
+
+    # ssh-copy-id has no -J option, so hand the jump hosts to ssh as ProxyJump
+    if [[ -n "$jumphost" ]]; then
+        args+=(-o "ProxyJump=$jumphost")
     fi
     
     # Execute ssh-copy-id with resolved hostname

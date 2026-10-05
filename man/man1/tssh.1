@@ -7,6 +7,9 @@ tssh \- SSH to Tailscale nodes with automatic hostname resolution
 .br
 .B tssh
 [\fIOPTIONS\fR] \fIuser\fR@\fIhostname\fR [\fIssh_options\fR]
+.br
+.B tssh
+[\fIOPTIONS\fR] \fB\-J\fR \fIjumphost\fR \fIhostname\fR [\fIssh_options\fR]
 .SH DESCRIPTION
 .B tssh
 provides quick SSH connections to Tailscale nodes with automatic hostname resolution and fuzzy matching. It resolves Tailscale hostnames to their MagicDNS names or IP addresses, falling back to regular SSH for non-Tailscale hosts.
@@ -19,6 +22,9 @@ Show debug information including hostname resolution details.
 .TP
 .BR \-\-resolve\-only
 Only resolve the hostname and print the result without connecting. Used internally by other tools.
+.TP
+.BR \-J " \fIjumphost\fR[,\fIjumphost\fR...]"
+Connect through one or more jump hosts, as with \fBssh \-J\fR (\fB\-o ProxyJump=\fR works the same way). A jump host naming a Tailscale node is resolved like the target and connects as root unless given as \fIuser\fR@\fIjumphost\fR; addresses and other names are passed to ssh unchanged. With a jump host, a target not found in the Tailscale network is passed to ssh as given, so it can be any host the jump host reaches, such as an address on its LAN.
 .PP
 All standard SSH options are passed through to the underlying ssh command.
 .SH EXAMPLES
@@ -34,6 +40,9 @@ Connect with SSH options:
 .TP
 Debug hostname resolution:
 .B tssh -v mynode
+.TP
+Reach a host on a node's LAN through that node:
+.B tssh -J mynode 192.168.1.10
 .SH HOSTNAME RESOLUTION
 \fBtssh\fR uses the following hostname resolution process:
 .IP 1. 4
@@ -45,7 +54,7 @@ Falls back to fuzzy matching using Levenshtein distance (maximum distance of 5)
 .IP 4. 4
 Prefers MagicDNS names when available, otherwise uses IP addresses
 .IP 5. 4
-Falls back to regular SSH if host is not in Tailscale network
+Falls back to regular SSH if host is not in Tailscale network, provided it is in \fI~/.ssh/known_hosts\fR or a jump host (\fB\-J\fR) is given
 .SH SECURITY
 \fBtssh\fR implements several security measures:
 .IP \(bu 4

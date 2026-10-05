@@ -30,6 +30,9 @@ Show what would be transferred without doing it
 .TP
 .BR \-P
 Same as --partial --progress
+.TP
+.BR \-e ", " \-\-rsh =\fICOMMAND\fR
+Remote shell to use. Jump hosts in it (\fBssh \-J\fR \fIjumphost\fR or \fB\-o ProxyJump=\fR\fIjumphost\fR) are resolved like remote hosts
 .SH EXAMPLES
 .TP
 Sync directory to remote host:
@@ -49,6 +52,9 @@ Exclude patterns:
 .TP
 Dry run to preview:
 .B trsync -av --dry-run source/ mynode:/dest/
+.TP
+Sync to a host on a node's LAN through that node:
+.B trsync -av -e \(dqssh -J mynode\(dq dir/ 192.168.1.10:/path/
 .SH HOSTNAME RESOLUTION
 \fBtrsync\fR automatically detects and resolves Tailscale hostnames:
 .IP \(bu 4

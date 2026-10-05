@@ -61,7 +61,8 @@ show_tscp_help() {
     echo "  -V, --version    Show version information"
     echo ""
     echo "SCP file transfer with automatic Tailscale hostname resolution."
-    echo "Resolves hostnames in remote file specifications (host:path)."
+    echo "Resolves hostnames in remote file specifications (host:path) and"
+    echo "jump hosts (-J)."
 }
 
 # Main function
@@ -84,7 +85,11 @@ main() {
         show_tscp_help
         exit 1
     fi
-    
+
+    # Resolve jump hosts (-J, -o ProxyJump) like the hosts in file arguments
+    resolve_jump_args "" "$@"
+    set -- "${JUMP_ARGS[@]}"
+
     local scp_opts=()
     local file_args=()
     local i=1

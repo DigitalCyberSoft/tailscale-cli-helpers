@@ -22,6 +22,9 @@ Connect to specified port
 .BR \-i " \fIidentity_file\fR"
 Select identity file for public key authentication
 .TP
+.BR \-J " \fIjumphost\fR"
+Connect through a jump host, as with \fBscp \-J\fR (\fB\-o ProxyJump=\fR works the same way). A jump host that is a Tailscale node is resolved like the remote hosts
+.TP
 .BR \-v
 Verbose mode
 .SH EXAMPLES
@@ -40,6 +43,9 @@ Recursive directory copy:
 .TP
 Copy with custom port:
 .B tscp -P 2222 file.txt mynode:/path/
+.TP
+Copy to a host on a node's LAN through that node:
+.B tscp -J mynode file.txt 192.168.1.10:/path/
 .SH HOSTNAME RESOLUTION
 \fBtscp\fR automatically detects and resolves Tailscale hostnames in remote file specifications:
 .IP \(bu 4

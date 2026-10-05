@@ -62,7 +62,7 @@ show_tsftp_help() {
     echo "  -V, --version    Show version information"
     echo ""
     echo "Start an SFTP session with a Tailscale node."
-    echo "Resolves Tailscale hostnames automatically."
+    echo "Resolves Tailscale hostnames automatically, including jump hosts (-J)."
 }
 
 # Main function
@@ -80,7 +80,11 @@ main() {
                 ;;
         esac
     done
-    
+
+    # Resolve jump hosts (-J, -o ProxyJump); like targets, they default to root
+    resolve_jump_args root "$@"
+    set -- "${JUMP_ARGS[@]}"
+
     local sftp_args=()
     local target_host=""
     local i=1
@@ -96,7 +100,7 @@ main() {
                 ((i++))
                 # Check if this option needs a value
                 case "$arg" in
-                    -o|-P|-F|-i|-c|-D|-l|-r|-R|-s|-S)
+                    -o|-P|-F|-i|-c|-D|-J|-l|-r|-R|-s|-S)
                         if [[ $i -le $# ]]; then
                             sftp_args+=("${!i}")
                             ((i++))

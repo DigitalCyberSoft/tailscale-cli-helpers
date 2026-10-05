@@ -35,6 +35,14 @@ Verbose output
 .TP
 .BR \-q
 Quiet mode, only show command output
+.TP
+.BR \-J " \fIjumphost\fR"
+Connect through a jump host (\fB\-o ProxyJump=\fR works the same way). A jump host that is a Tailscale node is resolved to its address
+.TP
+.BR \-p " \fIproxy_host\fR"
+Run through a proxy host that has mussh installed, resolved like a jump host
+.PP
+Behind a jump or proxy host, hosts given with \fB\-h\fR are only resolved when they exactly name a Tailscale node, so hosts on the jump host's LAN are reached as given.
 .SH WILDCARD PATTERNS
 \fBtmussh\fR supports shell-style wildcards for host selection:
 .IP \(bu 4
@@ -64,6 +72,9 @@ From host file:
 .TP
 With timeout:
 .B tmussh -t 30 -h "db-*" -c "mysql -e 'SHOW STATUS'"
+.TP
+Through a jump host to hosts on its LAN:
+.B tmussh -J mynode -h 192.168.1.10 192.168.1.11 -c "uptime"
 .SH OUTPUT FORMAT
 Output is prefixed with the hostname for each command:
 .PP

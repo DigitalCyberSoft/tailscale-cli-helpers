@@ -69,11 +69,14 @@ _levenshtein() {
     echo ${matrix[$((len1 * (len2 + 1) + len2))]}
 }
 
-# Resolve Tailscale hostname to IP or DNS name
+# Resolve Tailscale hostname to IP or DNS name; with fuzzy=false only exact
+# names match, not near misses
+# Usage: resolve_tailscale_host <hostname> [verbose] [fuzzy]
 resolve_tailscale_host() {
     local search_hostname="$1"
     local verbose="${2:-false}"
-    
+    local fuzzy="${3:-true}"
+
     # Check if user wants to use MagicDNS (opt-in)
     local use_magicdns="${TAILSCALE_USE_MAGICDNS:-false}"
     case "$use_magicdns" in
@@ -133,7 +136,7 @@ resolve_tailscale_host() {
         )
     ' 2>/dev/null | head -1)
     
-    if [[ -z "$result" ]]; then
+    if [[ -z "$result" ]] && [[ "$fuzzy" == "true" ]]; then
         # Try fuzzy matching
         [[ "$verbose" == "true" ]] && echo "[DEBUG] No exact match, trying fuzzy search..." >&2
         
@@ -492,6 +495,134 @@ resolve_host_interactive() {
             return 1
         fi
     fi
+}
+
+# Resolve the hops of an ssh -J (ProxyJump) spec: comma-separated
+# [user@]host[:port] or ssh://[user@]host[:port] entries. Hops naming a
+# Tailscale node become its IP (or MagicDNS name), connecting as default_user
+# when no user is given; addresses and other names pass through.
+# Usage: resolve_jump_hosts <spec> [default_user]
+# Outputs: the spec with Tailscale hops resolved
+resolve_jump_hosts() {
+    local spec="$1"
+    local default_prefix="${2:+$2@}"
+    local hops=()
+    local resolved_hops=()
+    local hop scheme user_prefix host port_suffix resolved
+
+    # "none" turns jumping off
+    if [[ "$spec" == [Nn][Oo][Nn][Ee] ]]; then
+        echo "$spec"
+        return 0
+    fi
+
+    IFS=',' read -r -a hops <<< "$spec"
+    for hop in "${hops[@]}"; do
+        scheme=""
+        user_prefix=""
+        port_suffix=""
+        host="$hop"
+        if [[ "$host" == "ssh://"* ]]; then
+            scheme="ssh://"
+            host="${host#ssh://}"
+        fi
+        if [[ "$host" == *"@"* ]]; then
+            user_prefix="${host%@*}@"
+            host="${host##*@}"
+        fi
+        if [[ "$host" == *":"* ]] && [[ "$host" != "["* ]]; then
+            port_suffix=":${host#*:}"
+            host="${host%%:*}"
+        fi
+
+        # IPv4 addresses need no lookup; bracketed IPv6 fails validation
+        if [[ "$host" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || ! _validate_hostname "$host"; then
+            resolved_hops+=("$hop")
+        elif resolved=$(resolve_host_interactive "$host" "jump host $spec"); then
+            resolved_hops+=("${scheme}${user_prefix:-$default_prefix}${resolved}${port_suffix}")
+        else
+            resolved_hops+=("$hop")
+        fi
+    done
+
+    local IFS=','
+    echo "${resolved_hops[*]}"
+}
+
+# Get the jump host spec from an ssh -o option if it is a ProxyJump
+# ("ProxyJump=spec" or "ProxyJump spec", keyword in any case)
+_proxy_jump_spec() {
+    local option="$1"
+    local keyword="${option%%[=[:space:]]*}"
+    [[ "$keyword" != "$option" ]] || return 1
+    [[ "$keyword" == [Pp][Rr][Oo][Xx][Yy][Jj][Uu][Mm][Pp] ]] || return 1
+    local spec="${option#"$keyword"}"
+    echo "${spec#"${spec%%[![:space:]=]*}"}"
+}
+
+# Resolve the jump hosts in ssh-style options (-J <spec>, -J<spec>,
+# -o ProxyJump=<spec>, -oProxyJump=<spec>) and leave the arguments in the
+# JUMP_ARGS array. Jump options come out as -J <spec> or -o ProxyJump=<spec>;
+# all other arguments are kept as given. Pass options only, not a remote
+# command whose words could look like options.
+# Usage: resolve_jump_args <default_user> <args...>
+# Returns: 0 if the arguments name a jump host, 1 otherwise
+resolve_jump_args() {
+    local default_user="$1"
+    shift
+    local jumping=1
+    local arg option value spec
+    JUMP_ARGS=()
+
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        shift
+        case "$arg" in
+            --)
+                JUMP_ARGS+=("$arg" "$@")
+                break
+                ;;
+            -J|-o)
+                if [[ $# -eq 0 ]]; then
+                    JUMP_ARGS+=("$arg")
+                    break
+                fi
+                option="$arg"
+                value="$1"
+                shift
+                ;;
+            -J?*|-o?*)
+                option="${arg:0:2}"
+                value="${arg:2}"
+                ;;
+            *)
+                JUMP_ARGS+=("$arg")
+                continue
+                ;;
+        esac
+
+        if [[ "$option" == "-J" ]]; then
+            spec="$value"
+        elif ! spec=$(_proxy_jump_spec "$value"); then
+            # Some other -o option, kept in its original form
+            if [[ "$arg" == "-o" ]]; then
+                JUMP_ARGS+=(-o "$value")
+            else
+                JUMP_ARGS+=("$arg")
+            fi
+            continue
+        fi
+
+        [[ "$spec" == [Nn][Oo][Nn][Ee] ]] || jumping=0
+        spec=$(resolve_jump_hosts "$spec" "$default_user")
+        if [[ "$option" == "-J" ]]; then
+            JUMP_ARGS+=(-J "$spec")
+        else
+            JUMP_ARGS+=(-o "ProxyJump=$spec")
+        fi
+    done
+
+    return $jumping
 }
 
 # Get all Tailscale hosts for completion

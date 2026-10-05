@@ -24,6 +24,9 @@ Select identity file for public key authentication
 .BR \-o " \fIssh_option\fR"
 Pass options to ssh in ssh_config format
 .TP
+.BR \-J " \fIjumphost\fR"
+Connect through a jump host, as with \fBsftp \-J\fR (\fB\-o ProxyJump=\fR works the same way). A jump host that is a Tailscale node is resolved like the target and connects as root unless given as \fIuser\fR@\fIjumphost\fR
+.TP
 .BR \-v
 Raise logging level (can be used multiple times)
 .TP
@@ -42,6 +45,9 @@ Connect with custom port:
 .TP
 Use specific identity file:
 .B tsftp -i ~/.ssh/custom_key mynode
+.TP
+Reach a host on a node's LAN through that node:
+.B tsftp -J mynode 192.168.1.10
 .SH SFTP COMMANDS
 Once connected, common SFTP commands include:
 .IP \(bu 4

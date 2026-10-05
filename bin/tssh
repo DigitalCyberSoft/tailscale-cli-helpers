@@ -62,6 +62,7 @@ show_tssh_help() {
     echo "Usage:"
     echo "  tssh [options] hostname [ssh_options]"
     echo "  tssh [options] user@hostname [ssh_options]"
+    echo "  tssh [options] -J jumphost hostname [ssh_options]"
     echo ""
     echo "Options:"
     echo "  -v, --verbose    Show debug information"
@@ -70,6 +71,8 @@ show_tssh_help() {
     echo ""
     echo "Connects to Tailscale nodes with automatic hostname resolution."
     echo "Falls back to regular SSH if host is not in Tailscale network."
+    echo "Jump hosts (-J) resolve the same way; behind one, the target can be"
+    echo "any host the jump host reaches, such as an address on its LAN."
 }
 
 # Main function
@@ -98,6 +101,7 @@ main() {
     local verbose=false
     local resolve_only=false
     local ssh_args=()
+    local command_start=""
     local target_host=""
     local i=1
     
@@ -133,6 +137,8 @@ main() {
                 if [[ -z "$target_host" ]]; then
                     target_host="$arg"
                 else
+                    # First word of the remote command; ssh options end here
+                    [[ -n "$command_start" ]] || command_start=${#ssh_args[@]}
                     ssh_args+=("$arg")
                 fi
                 ((i++))
@@ -152,7 +158,18 @@ main() {
         show_tssh_help
         exit 1
     fi
-    
+
+    # Resolve jump hosts (-J, -o ProxyJump) in the ssh options, leaving the
+    # remote command alone; like targets, they default to root
+    local jumping=false
+    if [[ "$resolve_only" != "true" ]]; then
+        local option_count="${command_start:-${#ssh_args[@]}}"
+        if resolve_jump_args root "${ssh_args[@]:0:option_count}"; then
+            jumping=true
+        fi
+        ssh_args=("${JUMP_ARGS[@]}" "${ssh_args[@]:option_count}")
+    fi
+
     # ANSI color codes
     local GREEN='\033[0;32m'
     local BLUE='\033[0;34m'
@@ -184,7 +201,14 @@ main() {
         if [[ "$resolve_only" == "true" ]]; then
             exit 1
         fi
-        
+
+        if [[ "$jumping" == "true" ]]; then
+            # The jump host resolves the target, so it needn't be a Tailscale
+            # node or in known_hosts (e.g. an address on the jump host's LAN)
+            echo -e "${BLUE}[SSH]${RESET} Connecting to ${BLUE}${target_host}${RESET} via jump host..."
+            exec ssh "$target_host" "${ssh_args[@]}"
+        fi
+
         echo "Host not found in Tailscale network, checking known_hosts..."
         if [[ -r ~/.ssh/known_hosts ]] && grep -Fq "$search_hostname" ~/.ssh/known_hosts 2>/dev/null; then
             echo -e "${BLUE}[SSH]${RESET} Found in known_hosts, connecting to ${BLUE}${target_host}${RESET}..."

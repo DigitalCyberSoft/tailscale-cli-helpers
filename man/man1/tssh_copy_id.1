@@ -30,7 +30,7 @@ Pass option to ssh in ssh_config format
 Force copying of keys without trying to check if they are already present
 .TP
 .BR \-J " \fIjumphost\fR"
-Use ProxyJump to connect through specified jump host. The jump host is also resolved if it's a Tailscale node
+Connect through a jump host, passed to ssh as ProxyJump since ssh-copy-id has no \fB\-J\fR option. A jump host that is a Tailscale node is resolved like the target and connects as root unless given as \fIuser\fR@\fIjumphost\fR. Behind a jump host, the target is only resolved when it exactly names a Tailscale node, so hosts on the jump host's LAN are reached as given
 .SH EXAMPLES
 .TP
 Copy SSH key to root user:

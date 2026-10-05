@@ -61,7 +61,20 @@ show_trsync_help() {
     echo "  -V, --version    Show version information"
     echo ""
     echo "rsync file synchronization with automatic Tailscale hostname resolution."
-    echo "Resolves hostnames in remote file specifications (host:path)."
+    echo "Resolves hostnames in remote file specifications (host:path) and jump"
+    echo "hosts in the remote shell (-e \"ssh -J host\")."
+}
+
+# Resolve the jump hosts in an rsync remote shell command ("ssh -J host")
+resolve_rsh_jump_hosts() {
+    local rsh="$1"
+    local words=()
+    read -r -a words <<< "$rsh"
+    if resolve_jump_args "" "${words[@]}"; then
+        echo "${JUMP_ARGS[*]}"
+    else
+        echo "$rsh"
+    fi
 }
 
 # Main function
@@ -96,8 +109,21 @@ main() {
         fi
     done
     
+    local rsh_next=false
     for arg in "$@"; do
-        if [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]] && [[ "$arg" != *"::"* ]]; then
+        if [[ "$rsh_next" == "true" ]]; then
+            # Remote shell command given after -e / --rsh
+            resolved_args+=("$(resolve_rsh_jump_hosts "$arg")")
+            rsh_next=false
+        elif [[ "$arg" == "--rsh" ]] || [[ "$arg" =~ ^-[a-zA-Z0-9]*e$ ]]; then
+            # -e on its own or ending a bundle (-avze): the command follows
+            resolved_args+=("$arg")
+            rsh_next=true
+        elif [[ "$arg" == "--rsh="* ]]; then
+            resolved_args+=("--rsh=$(resolve_rsh_jump_hosts "${arg#--rsh=}")")
+        elif [[ "$arg" == "-e"?* ]]; then
+            resolved_args+=("-e$(resolve_rsh_jump_hosts "${arg#-e}")")
+        elif [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]] && [[ "$arg" != *"::"* ]]; then
             # This looks like a remote host:path spec (but not rsync daemon :: syntax)
             local host_part="${arg%%:*}"
             local path_part="${arg#*:}"

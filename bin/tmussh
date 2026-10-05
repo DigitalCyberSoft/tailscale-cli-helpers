@@ -63,7 +63,8 @@ show_tmussh_help() {
     echo "  -V, --version    Show version information"
     echo ""
     echo "Run commands on multiple Tailscale hosts using mussh."
-    echo "Supports hostname resolution and wildcard patterns."
+    echo "Supports hostname resolution and wildcard patterns; jump (-J) and"
+    echo "proxy (-p) hosts are resolved too."
 }
 
 # Function to expand wildcards to Tailscale hosts
@@ -114,7 +115,24 @@ main() {
         show_tmussh_help
         exit 1
     fi
-    
+
+    # Resolve jump hosts (-J, -o ProxyJump) like the target hosts
+    local jumping=false
+    if resolve_jump_args "" "$@"; then
+        jumping=true
+    fi
+    set -- "${JUMP_ARGS[@]}"
+
+    # A proxy host (-p) is reached the same way as a jump host
+    for arg in "$@"; do
+        [[ "$arg" == "-p" ]] && jumping=true
+    done
+
+    # Behind a jump or proxy host only exact Tailscale names are resolved, so
+    # a LAN name isn't swapped for a similarly named node
+    local fuzzy=true
+    [[ "$jumping" == "true" ]] && fuzzy=false
+
     local mussh_args=()
     local host_list=()
     local i=1
@@ -140,7 +158,7 @@ main() {
                     else
                         # Try to resolve individual host
                         local resolved_host
-                        resolved_host=$(resolve_tailscale_host "$host_spec")
+                        resolved_host=$(resolve_tailscale_host "$host_spec" false "$fuzzy")
                         if [[ $? -eq 0 ]]; then
                             host_list+=("$resolved_host")
                         else
@@ -149,6 +167,15 @@ main() {
                     fi
                     ((i++))
                 done
+                ;;
+            -p)
+                # Proxy host
+                mussh_args+=("$arg")
+                ((i++))
+                if [[ $i -le $# ]]; then
+                    mussh_args+=("$(resolve_jump_hosts "${!i}")")
+                    ((i++))
+                fi
                 ;;
             -H|--hostfile)
                 # Host file - pass through as-is

@@ -51,6 +51,11 @@ kicks in when MagicDNS is enabled and actually resolving. If a name matches
 nothing in the tailnet, `tssh` falls back to plain `ssh` for hosts found in
 your `~/.ssh/known_hosts`.
 
+Jump hosts given with `-J` or `-o ProxyJump=` resolve the same way (for
+`trsync`, inside `-e "ssh -J host"`; `tmussh -p` proxies too), connecting as
+`root` wherever the target would. Behind a jump host, the target can be
+anything the jump host reaches, such as an address on its LAN.
+
 Node names coming out of `tailscale status` are validated before use, `jq`
 lookups bind values as parameters instead of interpolating strings, and
 arguments are passed with `--` separation, so a hostile node name can't turn
@@ -146,6 +151,7 @@ tssh web1                  # connects as root@web1
 tssh deploy@web1           # a different user
 tssh web1 -p 2222 -i ~/.ssh/id_ed25519
 tssh -v web1               # show how the name resolved
+tssh -J web1 192.168.1.20  # through web1 to a host on its LAN
 ts web1                    # ts shorthand for the same thing
 ```
 
@@ -154,6 +160,7 @@ ts web1                    # ts shorthand for the same thing
 ```bash
 tscp report.pdf web1:/tmp/
 tscp web1:/var/log/syslog ./
+tscp -J web1 report.pdf 192.168.1.20:/tmp/
 tscp -r ./site web1:/var/www/        # recursive
 tsftp web1                           # interactive sftp session
 ```
@@ -164,6 +171,7 @@ tsftp web1                           # interactive sftp session
 trsync -av ./site/ web1:/var/www/
 trsync -avz --delete --exclude='*.log' ./site/ web1:/var/www/
 trsync -av --dry-run ./site/ web1:/var/www/
+trsync -av -e "ssh -J web1" ./site/ 192.168.1.20:/var/www/
 ```
 
 ### Ping
