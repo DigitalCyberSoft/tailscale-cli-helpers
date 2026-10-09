@@ -21,6 +21,12 @@ _validate_tailscale_json() {
     echo "$json" | jq -e '.Self and .Peer and .CurrentTailnet' >/dev/null 2>&1
 }
 
+# Check whether the tailnet has MagicDNS turned on. MagicDNSSuffix is
+# reported even when MagicDNS is disabled, so only MagicDNSEnabled counts
+_magicdns_enabled() {
+    echo "$1" | jq -e '.CurrentTailnet.MagicDNSEnabled == true' >/dev/null 2>&1
+}
+
 # Security: Sanitize pattern for safe regex use
 _sanitize_pattern() {
     local pattern="$1"
@@ -113,7 +119,7 @@ resolve_tailscale_host() {
     
     # Check if MagicDNS is enabled
     local magicdns_enabled="false"
-    if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+    if _magicdns_enabled "$tailscale_json"; then
         magicdns_enabled="true"
     fi
     
@@ -204,7 +210,7 @@ is_magicdns_working() {
     tailscale_json=$(tailscale status --json 2>/dev/null) || return 1
     
     local magicdns_enabled="false"
-    if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+    if _magicdns_enabled "$tailscale_json"; then
         magicdns_enabled="true"
     fi
     
@@ -250,7 +256,7 @@ find_all_matching_hosts() {
     
     # Get MagicDNS status
     local magicdns_enabled="false"
-    if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+    if _magicdns_enabled "$tailscale_json"; then
         magicdns_enabled="true"
     fi
     
@@ -343,7 +349,7 @@ find_multiple_hosts_matching() {
     
     # Get MagicDNS status
     local magicdns_enabled="false"
-    if echo "$tailscale_json" | jq -e '.MagicDNSSuffix != null and .MagicDNSSuffix != ""' >/dev/null 2>&1; then
+    if _magicdns_enabled "$tailscale_json"; then
         magicdns_enabled="true"
     fi
     
