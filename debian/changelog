@@ -1,3 +1,11 @@
+tailscale-cli-helpers (0.5.0-1) unstable; urgency=medium
+
+  * Fix commands loading an outdated shared library left by an earlier user install (~/.local) instead of their own, which broke jump hosts with "resolve_jump_args: command not found"
+  * Commands and tab completion now load the library installed alongside them first
+  * Detect MagicDNS from the tailnet's MagicDNSEnabled setting, so hosts are no longer labelled with MagicDNS names when MagicDNS is off
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Sun, 18 Oct 2026 12:00:00 +0800
+
 tailscale-cli-helpers (0.4.0-1) unstable; urgency=medium
 
   * Resolve jump hosts in all commands: -J and -o ProxyJump for tssh, tscp, tsftp and tssh_copy_id, and ssh -J inside trsync -e/--rsh

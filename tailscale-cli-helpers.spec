@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.4.0
+Version:        0.5.0
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.4.0.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.5.0.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -23,7 +23,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.4.0
+%setup -q -n %{name}-0.5.0
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -109,6 +109,11 @@ fi
 %{_bindir}/%{name}-setup
 
 %changelog
+* Sun Oct 18 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.5.0-1
+- Fix commands loading an outdated shared library left by an earlier user install (~/.local) instead of their own, which broke jump hosts with "resolve_jump_args: command not found"
+- Commands and tab completion now load the library installed alongside them first
+- Detect MagicDNS from the tailnet's MagicDNSEnabled setting, so hosts are no longer labelled with MagicDNS names when MagicDNS is off
+
 * Mon Oct 05 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.4.0-1
 - Resolve jump hosts in all commands: -J and -o ProxyJump for tssh, tscp, tsftp and tssh_copy_id, and ssh -J inside trsync -e/--rsh
 - tssh: a target behind a jump host no longer has to be a Tailscale node or in known_hosts, so hosts on the jump host's LAN are reachable (ts -J node 192.168.1.10)
