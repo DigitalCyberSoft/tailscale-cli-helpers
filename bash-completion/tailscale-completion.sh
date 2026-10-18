@@ -21,8 +21,13 @@ _completion_source_resolver() {
     if [[ -z "$self_src" ]] && [[ -n "${ZSH_VERSION:-}" ]]; then
         self_src="${(%):-%x}"
     fi
+    # Prefer the library installed alongside the tssh on PATH, so a stale
+    # copy from another install method can't shadow it
+    local tssh_path
+    tssh_path=$(command -v tssh 2>/dev/null)
     local dirs=(
         "$(dirname "$self_src")/../lib"
+        "${tssh_path:+$(dirname "$tssh_path")/../share/tailscale-cli-helpers/lib}"
         "$HOME/.local/share/tailscale-cli-helpers/lib"
         "/usr/share/tailscale-cli-helpers/lib"
         "/usr/local/share/tailscale-cli-helpers/lib"
