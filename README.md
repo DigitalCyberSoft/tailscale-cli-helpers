@@ -117,6 +117,18 @@ A system install (requires `--system` and root) uses `/usr/bin`,
 
 Re-running `setup.sh` over an existing installation updates it in place.
 
+### Fedora/RHEL (COPR)
+
+```bash
+sudo dnf copr enable reversejames/tailscale-cli-helpers
+sudo dnf install tailscale-cli-helpers
+sudo dnf install tailscale-cli-helpers-mussh    # optional, for tmussh
+```
+
+Builds cover Fedora 43 and later and EPEL 9/10, on x86_64 and aarch64.
+`tmussh -J` needs a `mussh` with `-J` support; Fedora's `mussh` 1.0 lacks it,
+so use `-o ProxyJump=host` or `-p host` there.
+
 ### Packages
 
 Download the RPM or DEB from the

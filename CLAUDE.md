@@ -24,6 +24,7 @@ To release a new version:
 4. Commit changes and create git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`
 5. Build packages (see below)
 6. Create GitHub release with packages attached
+7. Submit the SRPMs to COPR (see below)
 
 ## Package Building
 
@@ -68,6 +69,19 @@ fakeroot alien --scripts --to-deb ~/rpmbuild/RPMS/noarch/tailscale-cli-helpers-m
 # Copy to packages directory
 mv tailscale-cli-helpers_X.Y.Z-2_all.deb packages/
 mv tailscale-cli-helpers-mussh_X.Y.Z-2_all.deb packages/
+```
+
+### COPR
+Project: https://copr.fedorainfracloud.org/coprs/reversejames/tailscale-cli-helpers/
+(Fedora 43+, rawhide, EPEL 9/10; x86_64 and aarch64). Needs a valid API token in
+`~/.config/copr` (tokens expire; renew at https://copr.fedorainfracloud.org/api).
+```bash
+# Build the SRPMs from the tagged GitHub tarball (rpmbuild -bs, as above), then:
+copr-cli build reversejames/tailscale-cli-helpers \
+    ~/rpmbuild/SRPMS/tailscale-cli-helpers-X.Y.Z-1.src.rpm
+# Only when tmussh changed:
+copr-cli build reversejames/tailscale-cli-helpers \
+    ~/rpmbuild/SRPMS/tailscale-cli-helpers-mussh-X.Y.Z-1.src.rpm
 ```
 
 ### Homebrew Formula
