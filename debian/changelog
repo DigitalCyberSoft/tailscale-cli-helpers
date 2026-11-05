@@ -1,3 +1,10 @@
+tailscale-cli-helpers (0.5.1-1) unstable; urgency=medium
+
+  * trsync: accept ssh-style -J jumphost (ts rsync -a -J node dir/ 192.168.1.10:/path/); rsync's own -J (--omit-link-times) still applies when the next argument is a path or an existing local file
+  * Literal IP addresses outside the tailnet are used as given instead of printing a misleading "not found in Tailscale network" error
+
+ -- Digital Cyber Soft <support@digitalcybersoft.com>  Thu, 05 Nov 2026 12:00:00 +0800
+
 tailscale-cli-helpers (0.5.0-1) unstable; urgency=medium
 
   * Fix commands loading an outdated shared library left by an earlier user install (~/.local) instead of their own, which broke jump hosts with "resolve_jump_args: command not found"
