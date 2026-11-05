@@ -423,6 +423,12 @@ resolve_host_interactive() {
     fi
 
     if [[ ${#matching_hosts[@]} -eq 0 ]]; then
+        # A literal IP outside the tailnet (e.g. a LAN address) is used as given
+        if [[ "$search_hostname" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || \
+           [[ "$search_hostname" == *:* && "$search_hostname" =~ ^[0-9a-fA-F:.]+$ ]]; then
+            echo "${user_prefix}${search_hostname}"
+            return 0
+        fi
         echo "Host '$search_hostname' not found in Tailscale network" >&2
         return 1
     elif [[ ${#matching_hosts[@]} -eq 1 ]]; then

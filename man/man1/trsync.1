@@ -33,6 +33,9 @@ Same as --partial --progress
 .TP
 .BR \-e ", " \-\-rsh =\fICOMMAND\fR
 Remote shell to use. Jump hosts in it (\fBssh \-J\fR \fIjumphost\fR or \fB\-o ProxyJump=\fR\fIjumphost\fR) are resolved like remote hosts
+.TP
+.BR \-J " \fIjumphost\fR"
+ssh-style jump host, passed to rsync as \fB\-e "ssh \-J\fR \fIjumphost\fB"\fR (or appended to an explicit \fB\-e\fR). Taken as a jump host only when \fIjumphost\fR contains no / or : and is not an existing local path; otherwise \fB\-J\fR is rsync's own \fB\-\-omit\-link\-times\fR
 .SH EXAMPLES
 .TP
 Sync directory to remote host:
@@ -55,6 +58,9 @@ Dry run to preview:
 .TP
 Sync to a host on a node's LAN through that node:
 .B trsync -av -e \(dqssh -J mynode\(dq dir/ 192.168.1.10:/path/
+.TP
+Same, ssh-style:
+.B trsync -av -J mynode dir/ 192.168.1.10:/path/
 .SH HOSTNAME RESOLUTION
 \fBtrsync\fR automatically detects and resolves Tailscale hostnames:
 .IP \(bu 4

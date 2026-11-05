@@ -66,7 +66,7 @@ show_trsync_help() {
     echo ""
     echo "rsync file synchronization with automatic Tailscale hostname resolution."
     echo "Resolves hostnames in remote file specifications (host:path) and jump"
-    echo "hosts in the remote shell (-e \"ssh -J host\")."
+    echo "hosts in the remote shell (-e \"ssh -J host\") or given ssh-style (-J host)."
 }
 
 # Resolve the jump hosts in an rsync remote shell command ("ssh -J host")
@@ -114,18 +114,33 @@ main() {
     done
     
     local rsh_next=false
-    for arg in "$@"; do
+    local rsh_index=-1
+    local jump_spec=""
+    local arg
+    while [[ $# -gt 0 ]]; do
+        arg="$1"
+        shift
         if [[ "$rsh_next" == "true" ]]; then
             # Remote shell command given after -e / --rsh
+            rsh_index=${#resolved_args[@]}
             resolved_args+=("$(resolve_rsh_jump_hosts "$arg")")
             rsh_next=false
+        elif [[ "$arg" == "-J" ]] && [[ $# -gt 0 ]] && [[ "$1" != -* ]] && \
+             [[ "$1" != *[/:]* ]] && [[ ! -e "$1" ]] && [[ ! -L "$1" ]]; then
+            # ssh-style -J <jumphost>. rsync's own -J (--omit-link-times) takes
+            # no argument, so the word after it would be a source path; one with
+            # no / or : that does not exist locally can only be a jump host.
+            jump_spec="${jump_spec:+$jump_spec,}$1"
+            shift
         elif [[ "$arg" == "--rsh" ]] || [[ "$arg" =~ ^-[a-zA-Z0-9]*e$ ]]; then
             # -e on its own or ending a bundle (-avze): the command follows
             resolved_args+=("$arg")
             rsh_next=true
         elif [[ "$arg" == "--rsh="* ]]; then
+            rsh_index=${#resolved_args[@]}
             resolved_args+=("--rsh=$(resolve_rsh_jump_hosts "${arg#--rsh=}")")
         elif [[ "$arg" == "-e"?* ]]; then
+            rsh_index=${#resolved_args[@]}
             resolved_args+=("-e$(resolve_rsh_jump_hosts "${arg#-e}")")
         elif [[ "$arg" == *":"* ]] && [[ "$arg" != "-"* ]] && [[ "$arg" != *"::"* ]]; then
             # This looks like a remote host:path spec (but not rsync daemon :: syntax)
@@ -146,7 +161,17 @@ main() {
             resolved_args+=("$arg")
         fi
     done
-    
+
+    # Hand an ssh-style -J jump host to rsync through the remote shell
+    if [[ -n "$jump_spec" ]]; then
+        jump_spec=$(resolve_jump_hosts "$jump_spec" "")
+        if [[ $rsh_index -ge 0 ]]; then
+            resolved_args[$rsh_index]="${resolved_args[$rsh_index]} -J $jump_spec"
+        else
+            resolved_args=(-e "${RSYNC_RSH:-ssh} -J $jump_spec" "${resolved_args[@]}")
+        fi
+    fi
+
     # Execute rsync with resolved arguments
     exec rsync "${resolved_args[@]}"
 }

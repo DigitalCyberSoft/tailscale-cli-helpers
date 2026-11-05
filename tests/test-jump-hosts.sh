@@ -265,6 +265,23 @@ test_other_commands() {
     expect_exec "trsync leaves rsync's own -J alone" \
         "rsync: [-aJ] [-J] [./site/] [100.64.0.20:/srv/]" \
         "$BIN/trsync" -aJ -J ./site/ web1:/srv/
+    expect_exec "trsync ssh-style -J becomes the remote shell's jump host" \
+        "rsync: [-e] [ssh -J 100.64.0.10] [-a] [./site/] [192.168.1.10:/srv/]" \
+        "$BIN/trsync" -a -J jumpnode ./site/ 192.168.1.10:/srv/
+    expect_exec "trsync ssh-style -J joins an explicit -e" \
+        "rsync: [-a] [-e] [ssh -p 2222 -J 100.64.0.10] [./site/] [192.168.1.10:/srv/]" \
+        "$BIN/trsync" -a -J jumpnode -e "ssh -p 2222" ./site/ 192.168.1.10:/srv/
+    mkdir -p "$TEST_DIR/work" && touch "$TEST_DIR/work/jumpnode"
+    expect_exec "trsync -J before an existing local file stays rsync's -J" \
+        "rsync: [-J] [jumpnode] [100.64.0.20:/srv/]" \
+        bash -c 'cd "$1" && exec "$2" -J jumpnode web1:/srv/' _ "$TEST_DIR/work" "$BIN/trsync"
+    local lan_output
+    lan_output=$("$BIN/trsync" -a ./site/ 192.168.1.10:/srv/ </dev/null 2>&1)
+    if [[ "$lan_output" == *"not found in Tailscale network"* ]]; then
+        report_test "trsync passes a non-tailnet IP through quietly" "FAIL" "$lan_output"
+    else
+        report_test "trsync passes a non-tailnet IP through quietly" "PASS"
+    fi
     expect_exec "tssh_copy_id -J goes to ssh as ProxyJump" \
         "ssh-copy-id: [-o] [ProxyJump=root@100.64.0.10] [root@192.168.1.10]" \
         "$BIN/tssh_copy_id" -J jumpnode 192.168.1.10
