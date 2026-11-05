@@ -1,8 +1,8 @@
 class TailscaleCliHelpers < Formula
   desc "Command-line helpers for Tailscale SSH operations"
   homepage "https://github.com/DigitalCyberSoft/tailscale-cli-helpers"
-  url "https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.5.0.tar.gz"
-  sha256 "aad8638ab97c946642bb0086c37d10967652f7a2fca094b303e002a876bb7f69"
+  url "https://github.com/DigitalCyberSoft/tailscale-cli-helpers/archive/refs/tags/v0.5.1.tar.gz"
+  sha256 "5c7132db46501007ff12210358a813d0c6a6b8b839324ec9d15afaa2b915a84f"
   license "MIT"
 
   depends_on "jq"
