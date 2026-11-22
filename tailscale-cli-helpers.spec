@@ -1,11 +1,11 @@
 Name:           tailscale-cli-helpers
-Version:        0.5.1
+Version:        0.5.2
 Release:        1
 Summary:        Bash/Zsh functions for easy SSH access to Tailscale nodes
 
 License:        MIT
 URL:            https://github.com/digitalcybersoft/tailscale-cli-helpers
-Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.5.1.tar.gz
+Source0:        https://github.com/digitalcybersoft/tailscale-cli-helpers/archive/refs/tags/v0.5.2.tar.gz
 
 Requires:       bash
 Requires:       jq
@@ -23,7 +23,7 @@ with hostname completion and fuzzy matching. Includes the 'tssh' command
 across multiple nodes.
 
 %prep
-%setup -q -n %{name}-0.5.1
+%setup -q -n %{name}-0.5.2
 
 %install
 rm -rf $RPM_BUILD_ROOT
@@ -109,6 +109,11 @@ fi
 %{_bindir}/%{name}-setup
 
 %changelog
+* Sun Nov 22 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.5.2-1
+- tsexit: 0 disables the exit node and 1-3 switch back to one of the last three exit nodes used (listed under Recent); both quit straight away. The list is kept in ~/.local/state/tailscale-cli-helpers/recent-exit-nodes
+- tsexit: expanding a country scrolls its nodes into view instead of leaving them below the bottom of the menu
+- tsexit: --help shows tsexit's own help, and r refreshes the node list instead of jumping to a country starting with R
+
 * Thu Nov 05 2026 Digital Cyber Soft <support@digitalcybersoft.com> - 0.5.1-1
 - trsync: accept ssh-style -J jumphost (ts rsync -a -J node dir/ 192.168.1.10:/path/); rsync's own -J (--omit-link-times) still applies when the next argument is a path or an existing local file
 - Literal IP addresses outside the tailnet are used as given instead of printing a misleading "not found in Tailscale network" error
