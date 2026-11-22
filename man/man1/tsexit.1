@@ -33,6 +33,9 @@ When the terminal supports ANSI escape codes and cursor movement, provides arrow
 Falls back to numbered menu selection for maximum compatibility with all terminals.
 .SS Exit Node Categories
 .TP
+.B Recent
+The last three exit nodes used, most recent first, including ones set outside tsexit that were active when tsexit changed the exit node. The active exit node and nodes no longer offered as exit nodes are left out. In select mode they are listed as ordinary options labeled (recent).
+.TP
 .B Personal/Tailnet Devices
 Your own devices and those shared within your Tailnet that can act as exit nodes.
 .TP
@@ -45,6 +48,12 @@ Navigate through the menu options.
 .TP
 .B Enter
 Select and apply the highlighted exit node.
+.TP
+.B 0
+Disable the exit node and quit.
+.TP
+.B 1\-3
+Switch to the numbered Recent exit node and quit.
 .TP
 .B q
 Quit without making changes.
@@ -106,10 +115,18 @@ Default installation location for user installation
 .TP
 .I /usr/bin/tsexit
 System-wide installation location
+.TP
+.I $XDG_STATE_HOME/tailscale-cli-helpers/recent-exit-nodes
+Recently used exit nodes, one name per line, most recent first.
 .SH ENVIRONMENT
 .TP
 .B TERM
 Used to detect terminal capabilities for interface selection.
+.TP
+.B XDG_STATE_HOME
+Directory holding the recent exit node list. Defaults to
+.I ~/.local/state
+when unset or empty.
 .SH SEE ALSO
 .BR ts (1),
 .BR tssh (1),

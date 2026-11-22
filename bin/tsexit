@@ -35,6 +35,48 @@ fi
 SCRIPT_NAME="tsexit"
 SCRIPT_DESCRIPTION="Tailscale Exit Node Manager"
 
+# Recently used exit nodes, most recent first, one name per line
+RECENT_EXIT_NODES_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/tailscale-cli-helpers/recent-exit-nodes"
+RECENT_EXIT_NODES_MAX=3
+
+# Show help
+show_help() {
+    echo "$SCRIPT_NAME - $SCRIPT_DESCRIPTION"
+    echo ""
+    echo "Usage: $SCRIPT_NAME [options]"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help       Show this help message"
+    echo "  -V, --version    Show version information"
+    echo "  -l, --list       List available exit nodes without interactive menu"
+    echo ""
+    echo "This tool provides an interactive menu for managing Tailscale exit nodes."
+    echo "It automatically detects and groups Mullvad exit nodes by country when available."
+    echo ""
+    echo "Navigation:"
+    echo "  - Arrow keys: Navigate through options"
+    echo "  - Enter: Select exit node or expand/collapse country"
+    echo "  - Right/Left arrows: Expand/collapse countries"
+    echo "  - a-z (except q, r): Jump to country starting with that letter"
+    echo "  - 0: Disable the exit node and quit"
+    echo "  - 1-$RECENT_EXIT_NODES_MAX: Switch to that Recent exit node and quit"
+    echo "  - r: Refresh the node list"
+    echo "  - q or ESC: Quit without changes"
+    echo ""
+    echo "Features:"
+    echo "  - Collapsed country view (expand with Enter or Right arrow)"
+    echo "  - Current exit node marked with ●"
+    echo "  - Automatic Mullvad detection"
+    echo "  - The last $RECENT_EXIT_NODES_MAX exit nodes used are listed under Recent, saved in"
+    echo "    $RECENT_EXIT_NODES_FILE"
+}
+
+# Override the default help handler. Must be defined before
+# handle_common_args runs, or --help prints the generic text
+show_help_for_script() {
+    show_help
+}
+
 # Handle common arguments (version, help)
 handle_common_args "$SCRIPT_NAME" "$SCRIPT_DESCRIPTION" "$@"
 
@@ -93,6 +135,8 @@ declare -a menu_values # Actual values (IPs or special values)
 declare -a menu_types  # Type of each item: NODE, COUNTRY, HEADER, etc.
 declare -a menu_display_names  # Clean display names for nodes (hostnames)
 declare -A expanded_countries  # Track which countries are expanded
+declare -a recent_values  # IPs of the Recent menu entries, in hotkey order (1-3)
+declare -a recent_names   # Display names of the Recent menu entries
 current_exit_node=""
 current_exit_node_name=""
 selected_index=0
@@ -148,27 +192,85 @@ get_current_exit_node() {
     clear_loading
 }
 
+# Print the saved recent exit node names, most recent first
+load_recent_exit_nodes() {
+    [[ -f "$RECENT_EXIT_NODES_FILE" ]] || return 0
+
+    local name
+    local count=0
+    while [[ $count -lt $RECENT_EXIT_NODES_MAX ]] && IFS= read -r name; do
+        [[ -z "$name" ]] && continue
+        echo "$name"
+        count=$((count + 1))
+    done < "$RECENT_EXIT_NODES_FILE"
+}
+
+# Move the given exit node names to the front of the recent list, keeping
+# at most RECENT_EXIT_NODES_MAX distinct names. A failed save only warns:
+# the exit node change it records has already succeeded
+save_recent_exit_nodes() {
+    local entries=()
+    local name existing duplicate
+
+    while IFS= read -r name; do
+        [[ -z "$name" || "$name" == "None" ]] && continue
+        duplicate=false
+        for existing in "${entries[@]}"; do
+            if [[ "$existing" == "$name" ]]; then
+                duplicate=true
+                break
+            fi
+        done
+        [[ "$duplicate" == false ]] && entries+=("$name")
+    done < <(printf '%s\n' "$@"; load_recent_exit_nodes)
+
+    [[ ${#entries[@]} -eq 0 ]] && return 0
+    entries=("${entries[@]:0:$RECENT_EXIT_NODES_MAX}")
+
+    # Write a temporary file and rename it, so a failed write never
+    # truncates the existing list
+    local dir="${RECENT_EXIT_NODES_FILE%/*}"
+    local tmp
+    if mkdir -p "$dir" && tmp=$(mktemp "$dir/.recent-exit-nodes.XXXXXX"); then
+        if printf '%s\n' "${entries[@]}" > "$tmp" && mv -f "$tmp" "$RECENT_EXIT_NODES_FILE"; then
+            return 0
+        fi
+        rm -f "$tmp"
+    fi
+
+    echo "${YELLOW}Warning: could not save recent exit nodes to $RECENT_EXIT_NODES_FILE${RESET}" >&2
+    return 1
+}
+
 # Build menu structure from JSON
 build_menu() {
     menu_items=()
     menu_values=()
     menu_types=()
     menu_display_names=()
+    recent_values=()
+    recent_names=()
+
+    # Loop variables. Local so a rebuild cannot overwrite the caller's
+    # variables of the same name, such as show_ansi_menu's country
+    local ip hostname dnsname country city full_name
+    local node_entry node_array sorted_node node_info
 
     declare -A country_nodes
+    declare -A exit_node_ips     # Display name -> IP, to resolve recent entries
+    declare -A exit_node_cities  # Display name -> city
     local personal_nodes=()
 
-    # Add None option
-    menu_items+=("◯ None (Disable exit node)")
+    # Add None option (also bound to the 0 key in arrow-key mode)
+    local none_marker="◯"
+    local none_hint=""
+    [[ "$current_exit_node" == "None" ]] && none_marker="●"
+    [[ "$USE_ANSI" == true ]] && none_hint=" ${DIM}[0]${RESET}"
+    menu_items+=("$none_marker None (Disable exit node)$none_hint")
     menu_values+=("")
     menu_types+=("NODE")
     menu_display_names+=("")
-    
-    # Mark current if None
-    if [[ "$current_exit_node" == "None" ]]; then
-        menu_items[0]="● None (Disable exit node)"
-    fi
-    
+
     # Parse exit nodes from JSON - single jq call for efficiency
     if [[ -n "$status_json" ]]; then
         # Get all exit node capable peers in one go (including IP for reliable selection)
@@ -194,6 +296,10 @@ build_menu() {
                 display_name="${dnsname%.}"
             fi
 
+            # Recent entries are saved by name; look up each node's current IP
+            exit_node_ips["$display_name"]="$value_name"
+            exit_node_cities["$display_name"]="$city"
+
             # Categorize nodes - check DNSName for mullvad domain or hostname pattern
             if [[ "$dnsname" == *.mullvad.ts.net ]] || [[ "$hostname" =~ ^[a-z]{2}-[a-z]{3}-wg-[0-9]+$ ]]; then
                 # It's a Mullvad node (pattern: country-city-wg-number)
@@ -215,7 +321,52 @@ build_menu() {
             fi
         done <<< "$exit_nodes"
     fi
-    
+
+    # Add recently used exit nodes (bound to keys 1-3 in arrow-key mode).
+    # The current node is already shown as Current, and nodes no longer
+    # offered as exit nodes are skipped
+    local recent_name
+    while IFS= read -r recent_name; do
+        [[ "$recent_name" == "$current_exit_node_name" ]] && continue
+        [[ -z "${exit_node_ips[$recent_name]}" ]] && continue
+        recent_values+=("${exit_node_ips[$recent_name]}")
+        recent_names+=("$recent_name")
+    done < <(load_recent_exit_nodes)
+
+    if [[ ${#recent_values[@]} -gt 0 ]]; then
+        menu_items+=("")
+        menu_values+=("SEPARATOR")
+        menu_types+=("SEPARATOR")
+        menu_display_names+=("")
+
+        menu_items+=("${CYAN}Recent${RESET}")
+        menu_values+=("HEADER")
+        menu_types+=("HEADER")
+        menu_display_names+=("")
+
+        local r
+        for ((r = 0; r < ${#recent_values[@]}; r++)); do
+            local recent_text="  ◯ ${recent_names[$r]}"
+            local recent_city="${exit_node_cities[${recent_names[$r]}]}"
+            if [[ -n "$recent_city" ]] && [[ "$recent_city" != "null" ]]; then
+                recent_text+=" ${DIM}($recent_city)${RESET}"
+            fi
+
+            # Select mode numbers every option itself, so label the entry
+            # there instead of showing its hotkey
+            if [[ "$USE_ANSI" == true ]]; then
+                recent_text+=" ${DIM}[$((r + 1))]${RESET}"
+            else
+                recent_text+=" (recent)"
+            fi
+
+            menu_items+=("$recent_text")
+            menu_values+=("${recent_values[$r]}")
+            menu_types+=("NODE")
+            menu_display_names+=("${recent_names[$r]}")
+        done
+    fi
+
     # Add personal devices section
     if [[ ${#personal_nodes[@]} -gt 0 ]]; then
         menu_items+=("")
@@ -380,6 +531,8 @@ apply_exit_node() {
         echo "${YELLOW}Disabling exit node...${RESET}"
         if run_tailscale_set "--exit-node="; then
             echo "${GREEN}✓ Exit node disabled successfully${RESET}"
+            # Put the node being disabled first in the recent list
+            save_recent_exit_nodes "$current_exit_node_name"
             return 0
         else
             echo "${RED}✗ Failed to disable exit node${RESET}" >&2
@@ -389,12 +542,26 @@ apply_exit_node() {
         echo "${YELLOW}Setting exit node to: $display_name${RESET}"
         if run_tailscale_set "--exit-node=$node_value"; then
             echo "${GREEN}✓ Exit node set to $display_name${RESET}"
+            # Record the new node, then the one it replaced, which may have
+            # been set outside tsexit
+            save_recent_exit_nodes "$display_name" "$current_exit_node_name"
             return 0
         else
             echo "${RED}✗ Failed to set exit node to $display_name${RESET}" >&2
             return 1
         fi
     fi
+}
+
+# Leave the arrow-key menu, apply an exit node and exit with its result,
+# so the outcome stays on the normal screen
+# Args: $1 = node value (IP, empty to disable), $2 = display name
+apply_exit_node_and_quit() {
+    trap - EXIT INT TERM HUP QUIT
+    tput cnorm 2>/dev/null  # Show cursor
+    tput rmcup 2>/dev/null  # Restore screen
+    apply_exit_node "$1" "$2"
+    exit $?
 }
 
 # Find next selectable item
@@ -464,6 +631,29 @@ jump_to_country() {
     done
     
     echo $current
+}
+
+# Scroll as far as needed to show the nodes of a newly expanded country,
+# without moving the country row itself off the top
+# Args: $1 = country index, $2 = viewport start, $3 = viewport height
+# Prints the new viewport start
+reveal_country_nodes() {
+    local country_index=$1
+    local start=$2
+    local height=$3
+    local last=$country_index
+
+    # The country's nodes are the NODE items right after it
+    while [[ $((last + 1)) -lt ${#menu_items[@]} ]] && [[ "${menu_types[$((last + 1))]}" == "NODE" ]]; do
+        last=$((last + 1))
+    done
+
+    if [[ $last -ge $((start + height)) ]]; then
+        start=$((last - height + 1))
+        [[ $start -gt $country_index ]] && start=$country_index
+    fi
+
+    echo $start
 }
 
 # Show menu using bash select (maximum compatibility)
@@ -643,7 +833,13 @@ show_ansi_menu() {
         # Instructions
         echo "────────────────────────────────────────────────────────────────"
         echo "[${BOLD}↑↓${RESET}] Navigate  [${BOLD}→←${RESET}] Expand/Collapse  [${BOLD}Enter${RESET}] Select  [${BOLD}a-z${RESET}] Jump"
-        echo "[${BOLD}q/ESC${RESET}] Quit  [${BOLD}r${RESET}] Refresh"
+        local recent_keys=""
+        if [[ ${#recent_values[@]} -eq 1 ]]; then
+            recent_keys="  [${BOLD}1${RESET}] Recent"
+        elif [[ ${#recent_values[@]} -gt 1 ]]; then
+            recent_keys="  [${BOLD}1-${#recent_values[@]}${RESET}] Recent"
+        fi
+        echo "[${BOLD}0${RESET}] Disable${recent_keys}  [${BOLD}q/ESC${RESET}] Quit  [${BOLD}r${RESET}] Refresh"
         if [[ -n "$search_buffer" ]]; then
             echo "Search: ${YELLOW}${search_buffer}${RESET}"
         fi
@@ -682,6 +878,7 @@ show_ansi_menu() {
                             if [[ -z "${expanded_countries[$country]}" ]]; then
                                 expanded_countries["$country"]=1
                                 build_menu
+                                viewport_start=$(reveal_country_nodes $selected_index $viewport_start $viewport_height)
                             fi
                         fi
                         ;;
@@ -733,6 +930,9 @@ show_ansi_menu() {
                     fi
                     # Rebuild menu with new expansion state
                     build_menu
+                    if [[ -n "${expanded_countries[$country]}" ]]; then
+                        viewport_start=$(reveal_country_nodes $selected_index $viewport_start $viewport_height)
+                    fi
                 elif [[ "$selected_type" == "NODE" ]]; then
                     tput cnorm 2>/dev/null  # Show cursor
                     apply_exit_node "$selected_value" "$selected_display"
@@ -745,24 +945,33 @@ show_ansi_menu() {
                     build_menu
                 fi
                 ;;
+            '0')  # Disable exit node and quit
+                apply_exit_node_and_quit "" ""
+                ;;
+            [1-9])  # Switch to a recent exit node and quit
+                if [[ $key -le ${#recent_values[@]} ]]; then
+                    apply_exit_node_and_quit "${recent_values[$((key - 1))]}" "${recent_names[$((key - 1))]}"
+                fi
+                ;;
             'q'|'Q')
                 cleanup
                 ;;
-            [a-zA-Z])  # Jump to country (but not 'q')
+            'r'|'R')
+                # Refresh. Must come before the a-z jump below, which
+                # would otherwise match r first
+                echo ""
+                echo "Refreshing..."
+                get_current_exit_node
+                build_menu
+                search_buffer=""
+                ;;
+            [a-zA-Z])  # Jump to country (but not 'q' or 'r')
                 search_buffer="${search_buffer}${key}"
                 # Jump to first country starting with this letter
                 local new_index=$(jump_to_country "${search_buffer:0:1}")
                 if [[ $new_index -ne $selected_index ]]; then
                     selected_index=$new_index
                 fi
-                ;;
-            'r'|'R')
-                # Refresh
-                echo ""
-                echo "Refreshing..."
-                get_current_exit_node
-                build_menu
-                search_buffer=""
                 ;;
             '/')
                 # Start search mode
@@ -778,40 +987,6 @@ show_ansi_menu() {
             selected_index=$((${#menu_items[@]} - 1))
         fi
     done
-}
-
-# Show help
-show_help() {
-    echo "$SCRIPT_NAME - $SCRIPT_DESCRIPTION"
-    echo ""
-    echo "Usage: $SCRIPT_NAME [options]"
-    echo ""
-    echo "Options:"
-    echo "  -h, --help       Show this help message"
-    echo "  -V, --version    Show version information"
-    echo "  -l, --list       List available exit nodes without interactive menu"
-    echo ""
-    echo "This tool provides an interactive menu for managing Tailscale exit nodes."
-    echo "It automatically detects and groups Mullvad exit nodes by country when available."
-    echo ""
-    echo "Navigation:"
-    echo "  - Arrow keys: Navigate through options"
-    echo "  - Enter: Select exit node or expand/collapse country"
-    echo "  - Right/Left arrows: Expand/collapse countries"
-    echo "  - a-z: Jump to country starting with that letter"
-    echo "  - r: Refresh the node list"
-    echo "  - q or ESC: Quit without changes"
-    echo ""
-    echo "Features:"
-    echo "  - Country flags for easy identification"
-    echo "  - Collapsed country view (expand with Enter or Right arrow)"
-    echo "  - Current exit node marked with ●"
-    echo "  - Automatic Mullvad detection"
-}
-
-# Override the default help handler
-show_help_for_script() {
-    show_help
 }
 
 # List mode (non-interactive)

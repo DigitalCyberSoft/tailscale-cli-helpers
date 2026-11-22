@@ -74,6 +74,10 @@ forms:
 grouped by country; your own devices get their own section; the active exit
 node is marked. `tsexit --list` prints the same information without the menu.
 
+In the menu, `0` turns the exit node off and `1`-`3` switch back to one of
+the last three exit nodes you used (listed under Recent); both quit straight
+away. The list is kept in `~/.local/state/tailscale-cli-helpers/recent-exit-nodes`.
+
 ![tsexit interactive exit node menu](screenshots/tsexit.svg)
 
 ## Requirements
