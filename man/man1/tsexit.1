@@ -100,7 +100,11 @@ jq must be installed for JSON parsing
 .IP \(bu 2
 User must have permission to run tailscale commands
 .PP
-Note: Setting exit nodes does not require sudo privileges.
+On Linux, changing the exit node needs root unless your user is the operator of tailscaled. When Tailscale refuses a change, tsexit retries it with sudo and prints the command that makes your user the operator, after which changes need no sudo:
+.PP
+.nf
+sudo tailscale set \-\-operator=$USER
+.fi
 .SH EXIT STATUS
 .TP
 .B 0

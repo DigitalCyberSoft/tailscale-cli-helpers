@@ -513,6 +513,9 @@ apply_exit_node() {
             # Check if it's a permission issue
             if [[ "$output" == *"Access denied"* ]] || [[ "$output" == *"permission"* ]] || [[ "$output" == *"sudo"* ]]; then
                 echo "${YELLOW}Permission required, using sudo...${RESET}"
+                # Tailscale's own fix for this: its operator user may change
+                # settings without root, so suggest making this user the operator
+                echo "${CYAN}Tip:${RESET} to switch exit nodes without sudo, run once: sudo tailscale set --operator=$(id -un)"
                 # Retry with sudo
                 if sudo tailscale set $cmd 2>&1; then
                     return 0

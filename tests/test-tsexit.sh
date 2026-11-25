@@ -151,7 +151,10 @@ EOF
         }) | from_entries)' "$TEST_DIR/status.json" > "$TEST_DIR/status.tmp" &&
         mv "$TEST_DIR/status.tmp" "$TEST_DIR/status.json"
 
-    # TS_SET_FAIL makes set fail with an error tsexit must not retry via sudo
+    # TS_SET_FAIL makes set fail with an error tsexit must not retry via sudo.
+    # TS_SET_DENY makes set refuse the change the way tailscale does for a
+    # user who is not the operator ("prefs write access denied" from
+    # tailscaled, plus the CLI's operator hint)
     cat > "$TEST_DIR/bin/tailscale" <<EOF
 #!/bin/sh
 case "\$1" in
@@ -167,6 +170,11 @@ case "\$1" in
             echo "set failed" >&2
             exit 1
         fi
+        if [ -n "\$TS_SET_DENY" ]; then
+            echo "prefs write access denied" >&2
+            echo "To not require root, use 'sudo tailscale set --operator=\\\$USER' once." >&2
+            exit 1
+        fi
         case "\$2" in
             --exit-node=*) printf '%s' "\${2#--exit-node=}" > "$TEST_DIR/exit-node" ;;
         esac
@@ -175,6 +183,16 @@ esac
 exit 0
 EOF
     chmod +x "$TEST_DIR/bin/tailscale"
+
+    # Stands in for sudo, so no test can reach the real one: records the
+    # command and runs it as if root had been granted
+    cat > "$TEST_DIR/bin/sudo" <<EOF
+#!/bin/sh
+echo "\$*" >> "$TEST_DIR/sudo.log"
+unset TS_SET_DENY
+exec "\$@"
+EOF
+    chmod +x "$TEST_DIR/bin/sudo"
 
     # Usage: drive.py <output file> <command> <key>...
     # Presses each key once the screen settles, writes the output with
@@ -260,7 +278,7 @@ EOF
     export HOME="$TEST_DIR/home"
     export XDG_STATE_HOME="$TEST_DIR/state"
     export TERM=xterm-256color
-    unset TS_SET_FAIL PTY_ROWS
+    unset TS_SET_FAIL TS_SET_DENY PTY_ROWS
     RECENT_FILE="$XDG_STATE_HOME/tailscale-cli-helpers/recent-exit-nodes"
 }
 
@@ -420,6 +438,38 @@ test_failures() {
     expect_output "unsaveable recent list warns" "Warning: could not save recent exit nodes"
 }
 
+test_sudo_fallback() {
+    echo -e "\n${BLUE}Sudo fallback${RESET}"
+
+    # Tailscale refuses the change, so tsexit retries it through sudo
+    rm -f "$TEST_DIR/sudo.log"
+    start_with "$DE_IP"
+    export TS_SET_DENY=1
+    run_tsexit "0"
+    unset TS_SET_DENY
+    expect_state "a refused change is retried with sudo" 0 "" "$DE_NODE"
+    expect_output "the sudo retry is announced" "Permission required, using sudo..."
+    expect_output "the operator command is suggested" "run once: sudo tailscale set --operator=$(id -un)"
+    local sudo_calls
+    sudo_calls=$(cat "$TEST_DIR/sudo.log" 2>/dev/null)
+    if [[ "$sudo_calls" == "tailscale set --exit-node=" ]]; then
+        report_test "sudo runs only the refused tailscale set" "PASS"
+    else
+        report_test "sudo runs only the refused tailscale set" "FAIL" "sudo was run as: '${sudo_calls:-never}'"
+    fi
+
+    # An allowed change never touches sudo and shows no tip
+    rm -f "$TEST_DIR/sudo.log"
+    start_with "$DE_IP"
+    run_tsexit "0"
+    expect_output "no operator tip when the change is allowed" ! "--operator"
+    if [[ ! -e "$TEST_DIR/sudo.log" ]]; then
+        report_test "sudo is not used when the change is allowed" "PASS"
+    else
+        report_test "sudo is not used when the change is allowed" "FAIL" "sudo was run as: '$(cat "$TEST_DIR/sudo.log")'"
+    fi
+}
+
 test_other_keys() {
     echo -e "\n${BLUE}Other keys and modes${RESET}"
 
@@ -486,6 +536,7 @@ main() {
     test_recent_keys
     test_enter_records_previous
     test_failures
+    test_sudo_fallback
     test_other_keys
     test_expand_reveals_nodes
 
